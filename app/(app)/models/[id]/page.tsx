@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/status-badge";
@@ -16,6 +16,7 @@ type Model = {
   stage: string | null;
   message: string | null;
   error: string | null;
+  logTail: string | null;
   avatarPath: string | null;
   bestEpoch: number | null;
   checkpoints: string | null;
@@ -93,6 +94,7 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
           {model.message && (
             <p className="mt-2 text-xs text-muted-foreground">{model.message}</p>
           )}
+          <LogTail text={model.logTail} />
         </div>
       )}
 
@@ -138,6 +140,39 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
           <div>{fmtDate(model.completedAt)}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LogTail({ text }: { text: string | null }) {
+  const [open, setOpen] = useState(true);
+  const preRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    if (open && preRef.current) {
+      preRef.current.scrollTop = preRef.current.scrollHeight;
+    }
+  }, [text, open]);
+
+  if (!text) return null;
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="text-xs text-muted-foreground hover:text-foreground"
+      >
+        {open ? "▾" : "▸"} worker output
+      </button>
+      {open && (
+        <pre
+          ref={preRef}
+          className="mt-2 max-h-64 overflow-auto rounded-md border bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"
+        >
+          {text}
+        </pre>
+      )}
     </div>
   );
 }

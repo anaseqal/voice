@@ -42,6 +42,7 @@ TRAIN_EMBEDDER = _env("TRAIN_EMBEDDER", "contentvec")
 TRAIN_TOTAL_EPOCHS = int(_env("TRAIN_TOTAL_EPOCHS", "500"))
 TRAIN_SAVE_EVERY = int(_env("TRAIN_SAVE_EVERY", "25"))
 TRAIN_SILENT_FILES = int(_env("TRAIN_SILENT_FILES", "2"))
+TRAIN_CUT_PREPROCESS = _env("TRAIN_CUT_PREPROCESS", "Automatic")  # Skip | Simple | Automatic
 
 # --- Inference defaults (locked) ---
 INFER_INDEX_RATE = float(_env("INFER_INDEX_RATE", "0.65"))

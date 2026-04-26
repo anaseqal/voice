@@ -10,7 +10,9 @@ from urllib.parse import urlparse
 import httpx
 
 from . import applio_runner, config
-from .jobs import Job, JobStatus
+from .jobs import Job, JobStatus, current_job
+
+LOG_FLUSH_INTERVAL_SEC = 2.0
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
@@ -59,15 +61,37 @@ async def _callback(job: Job, *, terminal: bool = False) -> None:
 
 
 async def _run_cmd(cmd: list[str]) -> None:
+    job = current_job.get()
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
     )
     assert proc.stdout is not None
-    async for line in proc.stdout:
-        log.info("[cmd] %s", line.decode("utf-8", errors="replace").rstrip())
+    async for raw in proc.stdout:
+        text = raw.decode("utf-8", errors="replace").rstrip()
+        log.info("[cmd] %s", text)
+        if job is not None:
+            job.append_log(text)
     rc = await proc.wait()
     if rc != 0:
         raise RuntimeError(f"command failed (rc={rc}): {' '.join(cmd)}")
+
+
+async def _log_flusher(job: Job) -> None:
+    """Fire a callback whenever log_tail changes, throttled to LOG_FLUSH_INTERVAL_SEC.
+
+    Lets the frontend show fresh subprocess output without spamming a callback
+    per line. Cancelled by the caller when the job ends."""
+    last_seq = job.log_seq
+    while True:
+        try:
+            await asyncio.sleep(LOG_FLUSH_INTERVAL_SEC)
+            if job.log_seq != last_seq:
+                last_seq = job.log_seq
+                await _callback(job)
+        except asyncio.CancelledError:
+            return
+        except Exception as exc:
+            log.warning("log flusher error: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +281,8 @@ async def mix(vocal_path: Path, instrumental_path: Path, output_path: Path) -> N
 # ---------------------------------------------------------------------------
 
 async def run_training(job: Job) -> None:
+    current_job.set(job)
+    flusher = asyncio.create_task(_log_flusher(job))
     job.status = JobStatus.RUNNING
     import time
     job.started_at = time.time()
@@ -350,6 +376,7 @@ async def run_training(job: Job) -> None:
         job.error = str(exc)
         await _set(job, stage="failed", message=str(exc))
     finally:
+        flusher.cancel()
         import time as _t
         job.finished_at = _t.time()
         await _callback(job, terminal=True)
@@ -381,6 +408,8 @@ async def _watch_training_progress(job: Job, slug: str, total_epoch: int) -> Non
 # ---------------------------------------------------------------------------
 
 async def run_cover(job: Job) -> None:
+    current_job.set(job)
+    flusher = asyncio.create_task(_log_flusher(job))
     job.status = JobStatus.RUNNING
     import time
     job.started_at = time.time()
@@ -443,6 +472,7 @@ async def run_cover(job: Job) -> None:
         job.error = str(exc)
         await _set(job, stage="failed", message=str(exc))
     finally:
+        flusher.cancel()
         import time as _t
         job.finished_at = _t.time()
         # Clean intermediate files but keep the final output

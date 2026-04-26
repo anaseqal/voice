@@ -18,6 +18,7 @@ model Model {
   message      String?
   error        String?
   workerJobId  String?
+  logTail      String?  // last ~30 lines of worker subprocess output
 
   modelPth     String?
   indexFile    String?

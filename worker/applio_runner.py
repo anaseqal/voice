@@ -10,6 +10,7 @@ import shutil
 from pathlib import Path
 
 from . import config
+from .jobs import current_job
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class ApplioError(RuntimeError):
 async def _run(cmd: list[str], cwd: Path | None = None) -> str:
     """Run a subprocess and stream output to logs. Returns combined stdout+stderr."""
     log.info("running: %s", " ".join(cmd))
+    job = current_job.get()
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=str(cwd) if cwd else None,
@@ -33,6 +35,8 @@ async def _run(cmd: list[str], cwd: Path | None = None) -> str:
         text = line.decode("utf-8", errors="replace").rstrip()
         chunks.append(text)
         log.info("[applio] %s", text)
+        if job is not None:
+            job.append_log(text)
     rc = await proc.wait()
     output = "\n".join(chunks)
     if rc != 0:
@@ -49,6 +53,7 @@ async def preprocess(model_name: str, dataset_path: Path, sample_rate: int) -> N
         "--dataset_path", str(dataset_path),
         "--sample_rate", str(sample_rate),
         "--cpu_cores", "4",
+        "--cut_preprocess", config.TRAIN_CUT_PREPROCESS,
     ]
     await _run(cmd, cwd=config.APPLIO_DIR)
 
