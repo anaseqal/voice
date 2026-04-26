@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Model {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  displayName  String
+  avatarPath   String?
+  status       String   // queued | training | ready | failed
+  stage        String?
+  progress     Int      @default(0)
+  message      String?
+  error        String?
+  workerJobId  String?
+
+  modelPth     String?
+  indexFile    String?
+  bestEpoch    Int?
+  checkpoints  String?  // JSON-encoded [{epoch, path}]
+
+  createdAt    DateTime @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  songs        TrainingSong[]
+  covers       Cover[]
+}
+
+model TrainingSong {
+  id        String   @id @default(cuid())
+  modelId   String
+  url       String
+  status    String   @default("pending") // pending | downloaded | isolated | failed
+  durationSec Float?
+
+  model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+}
+
+model Cover {
+  id            String   @id @default(cuid())
+  modelId       String
+  inputName     String   // original filename
+  inputPath     String   // local path to upload
+  inputUrl      String?  // optional: if user provided URL instead of upload
+  outputPath    String?  // local path to result
+  status        String   // queued | running | done | failed
+  stage         String?
+  progress      Int      @default(0)
+  message       String?
+  error         String?
+  workerJobId   String?
+  pitch         Int      @default(0)
+  epoch         Int?     // checkpoint used (null = best)
+
+  createdAt    DateTime @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  model    Model    @relation(fields: [modelId], references: [id])
+}
