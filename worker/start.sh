@@ -61,9 +61,14 @@ WORKER_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 # Applio's venv bin; ffmpeg is system-wide.
 VENV_BIN="$APPLIO_DIR/.venv/bin"
 
+# /workspace/.bin holds persistent static binaries (ffmpeg/ffprobe) that
+# survive RunPod container resets — apt-installed binaries live on the
+# wipeable container disk.
+PERSISTENT_BIN="/workspace/.bin"
+
 tmux new-session -d -s "$SESSION" \
   "cd '$WORKER_DIR' && \
-   PATH='$VENV_BIN:/usr/local/bin:/usr/bin:/bin' \
+   PATH='$VENV_BIN:$PERSISTENT_BIN:/usr/local/bin:/usr/bin:/bin' \
    WORKER_BEARER_TOKEN='$WORKER_BEARER_TOKEN' \
    APPLIO_DIR='$APPLIO_DIR' \
    '$VENV_PY' -m uvicorn worker.worker:app \
