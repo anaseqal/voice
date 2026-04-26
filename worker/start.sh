@@ -56,8 +56,14 @@ mkdir -p "$(dirname "$LOG_FILE")"
 SCRIPT_PATH="$(realpath "$0")"
 WORKER_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 
+# Worker calls `audio-separator`, `yt-dlp`, `ffmpeg`, `ffprobe` as bare
+# commands — they must be on PATH. audio-separator + yt-dlp live in
+# Applio's venv bin; ffmpeg is system-wide.
+VENV_BIN="$APPLIO_DIR/.venv/bin"
+
 tmux new-session -d -s "$SESSION" \
   "cd '$WORKER_DIR' && \
+   PATH='$VENV_BIN:/usr/local/bin:/usr/bin:/bin' \
    WORKER_BEARER_TOKEN='$WORKER_BEARER_TOKEN' \
    APPLIO_DIR='$APPLIO_DIR' \
    '$VENV_PY' -m uvicorn worker.worker:app \
