@@ -5,11 +5,18 @@ import asyncio
 import logging
 import shutil
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 
 from . import applio_runner, config
 from .jobs import Job, JobStatus
+
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+)
+DIRECT_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac"}
 
 log = logging.getLogger(__name__)
 
@@ -67,35 +74,83 @@ async def _run_cmd(cmd: list[str]) -> None:
 # Audio operations
 # ---------------------------------------------------------------------------
 
-async def download_audio(url: str, dest_dir: Path, basename: str) -> Path:
-    """Download audio from a URL or YouTube link. Returns the resulting file path."""
+async def _download_direct(url: str, dest_dir: Path, basename: str) -> Path:
+    """Stream a direct audio file URL to disk."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    parsed = urlparse(url)
+    ext = Path(parsed.path).suffix.lower() or ".mp3"
+    if ext not in DIRECT_AUDIO_EXTS:
+        ext = ".mp3"
+    dest = dest_dir / f"{basename}{ext}"
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Referer": f"{parsed.scheme}://{parsed.netloc}/",
+        "Accept": "*/*",
+    }
+    log.info("direct download: %s → %s", url, dest)
+    async with httpx.AsyncClient(follow_redirects=True, timeout=300.0) as client:
+        async with client.stream("GET", url, headers=headers) as resp:
+            resp.raise_for_status()
+            with open(dest, "wb") as fh:
+                async for chunk in resp.aiter_bytes(64 * 1024):
+                    fh.write(chunk)
+    return dest
+
+
+async def _download_via_ytdlp(url: str, dest_dir: Path, basename: str) -> Path:
+    """Use yt-dlp for YouTube/Soundcloud/etc. extracts to MP3."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     out_template = str(dest_dir / f"{basename}.%(ext)s")
     cmd = [
         "yt-dlp",
         "--no-playlist",
         "--no-warnings",
-        "-x",                       # extract audio
+        "-x",
         "--audio-format", "mp3",
-        "--audio-quality", "0",     # best quality
+        "--audio-quality", "0",
+        "--user-agent", USER_AGENT,
         "-o", out_template,
         url,
     ]
     await _run_cmd(cmd)
     files = sorted(dest_dir.glob(f"{basename}.*"))
-    audio_files = [f for f in files if f.suffix.lower() in {".mp3", ".wav", ".m4a", ".flac", ".opus"}]
+    audio_files = [f for f in files if f.suffix.lower() in DIRECT_AUDIO_EXTS]
     if not audio_files:
-        raise RuntimeError(f"download produced no audio file for {url}")
+        raise RuntimeError(f"yt-dlp produced no audio file for {url}")
     return audio_files[0]
 
 
-async def isolate(input_path: Path, output_dir: Path, both_stems: bool = False) -> dict[str, Path]:
-    """Isolate vocals (and optionally instrumental) using audio-separator."""
+def _looks_like_direct_audio(url: str) -> bool:
+    parsed = urlparse(url)
+    ext = Path(parsed.path).suffix.lower()
+    return ext in DIRECT_AUDIO_EXTS
+
+
+async def download_audio(url: str, dest_dir: Path, basename: str) -> Path:
+    """Download audio. Direct file URLs use HTTP fetch; everything else
+    (YouTube, Soundcloud, ...) goes through yt-dlp. If the direct fetch
+    fails for some reason (403, redirect to HTML, ...) we fall back to
+    yt-dlp's generic extractor as a last resort."""
+    if _looks_like_direct_audio(url):
+        try:
+            return await _download_direct(url, dest_dir, basename)
+        except Exception as exc:
+            log.warning("direct download failed (%s) — falling back to yt-dlp", exc)
+    return await _download_via_ytdlp(url, dest_dir, basename)
+
+
+async def _separate_once(
+    input_path: Path,
+    output_dir: Path,
+    model_filename: str,
+    both_stems: bool,
+) -> dict[str, Path]:
+    """Single audio-separator invocation. Returns paths keyed by stem name."""
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
         "audio-separator",
         str(input_path),
-        "--model_filename", config.UVR_MODEL,
+        "--model_filename", model_filename,
         "--output_dir", str(output_dir),
         "--output_format", "WAV",
     ]
@@ -110,9 +165,70 @@ async def isolate(input_path: Path, output_dir: Path, both_stems: bool = False) 
             result["vocals"] = f
         elif "(Instrumental)" in f.name:
             result["instrumental"] = f
-    if "vocals" not in result:
-        raise RuntimeError(f"isolation produced no vocals for {input_path}")
     return result
+
+
+async def isolate(input_path: Path, output_dir: Path, both_stems: bool = False) -> dict[str, Path]:
+    """Isolate vocals from a song.
+
+    Pass 1: split vocals from instrumental using `UVR_MODEL`.
+    Pass 2 (if `TWO_PASS_ISOLATION` is on): re-run a karaoke-style cleanup
+    model on the vocal stem to strip residual instruments (cymbals, harmonies,
+    reverb tails). The pass-2 instrumental output is discarded — only the
+    cleaner vocals are kept. The pass-1 instrumental is preserved unchanged
+    (we want the *full* original backing track for cover mixing).
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Pass 1: main separation
+    pass1_dir = output_dir / "_pass1"
+    pass1 = await _separate_once(
+        input_path,
+        pass1_dir,
+        model_filename=config.UVR_MODEL,
+        both_stems=both_stems,
+    )
+    if "vocals" not in pass1:
+        raise RuntimeError(f"pass-1 isolation produced no vocals for {input_path}")
+
+    final: dict[str, Path] = {}
+
+    # Persist pass-1 instrumental as-is (don't touch — used for remix)
+    if both_stems and "instrumental" in pass1:
+        instr_dest = output_dir / f"{input_path.stem}_(Instrumental)_pass1.wav"
+        shutil.move(str(pass1["instrumental"]), instr_dest)
+        final["instrumental"] = instr_dest
+
+    if not config.TWO_PASS_ISOLATION:
+        # Move vocals up and clean
+        vocals_dest = output_dir / f"{input_path.stem}_(Vocals).wav"
+        shutil.move(str(pass1["vocals"]), vocals_dest)
+        final["vocals"] = vocals_dest
+        shutil.rmtree(pass1_dir, ignore_errors=True)
+        return final
+
+    # Pass 2: clean up the vocal stem
+    pass2_dir = output_dir / "_pass2"
+    pass2 = await _separate_once(
+        pass1["vocals"],
+        pass2_dir,
+        model_filename=config.UVR_CLEANUP_MODEL,
+        both_stems=False,  # we only need the cleaned vocals from pass 2
+    )
+    if "vocals" not in pass2:
+        log.warning("pass-2 cleanup yielded no vocals; falling back to pass-1 vocals")
+        clean_vocals_src = pass1["vocals"]
+    else:
+        clean_vocals_src = pass2["vocals"]
+
+    vocals_dest = output_dir / f"{input_path.stem}_(Vocals).wav"
+    shutil.move(str(clean_vocals_src), vocals_dest)
+    final["vocals"] = vocals_dest
+
+    # Cleanup intermediates
+    shutil.rmtree(pass1_dir, ignore_errors=True)
+    shutil.rmtree(pass2_dir, ignore_errors=True)
+    return final
 
 
 async def mix(vocal_path: Path, instrumental_path: Path, output_path: Path) -> None:

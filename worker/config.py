@@ -26,8 +26,13 @@ DATASET_ROOT = WORKSPACE / "dataset"
 JOBS_ROOT = WORKSPACE / "voiceapp-worker" / "jobs"
 OUTPUTS_ROOT = WORKSPACE / "voiceapp-worker" / "outputs"
 
-# UVR model used for vocal/instrumental separation
+# UVR models used for vocal/instrumental separation.
+# Pass 1 splits vocals from instrumental.
 UVR_MODEL = _env("UVR_MODEL", "UVR-MDX-NET-Inst_HQ_4.onnx")
+# Pass 2 (optional) cleans up residual instruments inside the vocal stem.
+# Set TWO_PASS_ISOLATION=0 to disable.
+UVR_CLEANUP_MODEL = _env("UVR_CLEANUP_MODEL", "5_HP-Karaoke-UVR.pth")
+TWO_PASS_ISOLATION = _env("TWO_PASS_ISOLATION", "1") not in ("0", "false", "no", "")
 
 # --- Production training defaults (locked) ---
 TRAIN_SAMPLE_RATE = int(_env("TRAIN_SAMPLE_RATE", "48000"))
