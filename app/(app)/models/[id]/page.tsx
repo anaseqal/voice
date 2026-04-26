@@ -1,5 +1,5 @@
 "use client";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/status-badge";
@@ -26,8 +26,8 @@ type Model = {
   _count: { covers: number };
 };
 
-export default function ModelDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function ModelDetail({ params }: { params: { id: string } }) {
+  const { id } = params;
   const router = useRouter();
   const [model, setModel] = useState<Model | null>(null);
 

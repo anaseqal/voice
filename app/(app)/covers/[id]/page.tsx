@@ -1,5 +1,5 @@
 "use client";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
@@ -22,8 +22,8 @@ type Cover = {
   model: { slug: string; displayName: string; avatarPath: string | null };
 };
 
-export default function CoverDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function CoverDetail({ params }: { params: { id: string } }) {
+  const { id } = params;
   const [cover, setCover] = useState<Cover | null>(null);
 
   useEffect(() => {
