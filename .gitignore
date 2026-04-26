@@ -12,6 +12,7 @@ node_modules/
 out/
 .turbo/
 .vercel/
+tsconfig.tsbuildinfo
 
 # Env
 .env
