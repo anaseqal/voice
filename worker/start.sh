@@ -29,8 +29,18 @@ if [[ ! -x "$VENV_PY" ]]; then
   exit 1
 fi
 
-# Install worker deps into Applio's venv (idempotent)
-"$VENV_PY" -m pip install --quiet -r "$(dirname "$0")/requirements.txt"
+# Install worker deps into Applio's venv (idempotent).
+# Applio is set up with `uv` so pip may not exist — try both.
+REQ="$(dirname "$0")/requirements.txt"
+if "$VENV_PY" -m pip --version >/dev/null 2>&1; then
+  "$VENV_PY" -m pip install --quiet -r "$REQ"
+elif command -v uv >/dev/null 2>&1; then
+  VIRTUAL_ENV="$APPLIO_DIR/.venv" uv pip install --quiet -r "$REQ"
+else
+  echo "Bootstrapping pip in Applio's venv..."
+  "$VENV_PY" -m ensurepip --upgrade --quiet
+  "$VENV_PY" -m pip install --quiet -r "$REQ"
+fi
 
 # tmux launcher — kill old session if present
 if tmux has-session -t "$SESSION" 2>/dev/null; then
