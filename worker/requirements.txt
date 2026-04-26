@@ -1,0 +1,8 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+pydantic==2.10.3
+python-multipart==0.0.20
+yt-dlp==2025.2.19
+audio-separator[gpu]==0.32.0
+onnxruntime-gpu==1.20.1

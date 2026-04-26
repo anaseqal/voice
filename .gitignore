@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App data (never commit user data or models)
+data/
+storage/
+worker/jobs/
+worker/outputs/
+worker/dataset/
+worker/logs/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.pth
+*.index
+*.onnx
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
