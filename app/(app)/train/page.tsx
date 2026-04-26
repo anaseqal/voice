@@ -69,7 +69,6 @@ export default function TrainPage() {
               value={slug}
               onChange={(e) => setSlug(slugify(e.target.value))}
               placeholder="rashid"
-              pattern="[a-z0-9][-a-z0-9_]{1,40}"
               className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
             />
             <p className="mt-1 text-xs text-muted-foreground">
