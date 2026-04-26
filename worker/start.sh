@@ -50,7 +50,11 @@ fi
 
 mkdir -p "$(dirname "$LOG_FILE")"
 
-WORKER_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
+# Resolve symlinks first — without realpath, `cd $(dirname start.sh)/..`
+# would land in the symlink's parent (e.g. /workspace) instead of the real
+# repo root, and Python wouldn't find the `worker` package.
+SCRIPT_PATH="$(realpath "$0")"
+WORKER_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 
 tmux new-session -d -s "$SESSION" \
   "cd '$WORKER_DIR' && \
