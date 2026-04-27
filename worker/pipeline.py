@@ -378,16 +378,26 @@ async def _separate_once(
     return result
 
 
-async def isolate(input_path: Path, output_dir: Path, both_stems: bool = False) -> dict[str, Path]:
+async def isolate(
+    input_path: Path,
+    output_dir: Path,
+    both_stems: bool = False,
+    two_pass: bool | None = None,
+) -> dict[str, Path]:
     """Isolate vocals from a song.
 
     Pass 1: split vocals from instrumental using `UVR_MODEL`.
-    Pass 2 (if `TWO_PASS_ISOLATION` is on): re-run a karaoke-style cleanup
-    model on the vocal stem to strip residual instruments (cymbals, harmonies,
-    reverb tails). The pass-2 instrumental output is discarded — only the
-    cleaner vocals are kept. The pass-1 instrumental is preserved unchanged
-    (we want the *full* original backing track for cover mixing).
+    Pass 2 (if two_pass is on): re-run a karaoke-style cleanup model on the
+    vocal stem to strip residual instruments. The pass-2 instrumental output
+    is discarded — only the cleaner vocals are kept. The pass-1 instrumental
+    is preserved unchanged (we want the *full* original backing track for
+    cover mixing).
+
+    `two_pass=None` means "use the global TWO_PASS_ISOLATION default" so
+    callers that don't care about overrides keep working.
     """
+    if two_pass is None:
+        two_pass = config.TWO_PASS_ISOLATION
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Pass 1: main separation
@@ -409,7 +419,7 @@ async def isolate(input_path: Path, output_dir: Path, both_stems: bool = False) 
         shutil.move(str(pass1["instrumental"]), instr_dest)
         final["instrumental"] = instr_dest
 
-    if not config.TWO_PASS_ISOLATION:
+    if not two_pass:
         # Move vocals up and clean
         vocals_dest = output_dir / f"{input_path.stem}_(Vocals).wav"
         shutil.move(str(pass1["vocals"]), vocals_dest)
@@ -469,7 +479,7 @@ def _resolve_total_epoch(settings: dict, num_songs: int) -> int:
     return int(cfg)
 
 
-async def _trim_silence(path: Path) -> None:
+async def _trim_silence(path: Path, enabled: bool | None = None) -> None:
     """In-place: rewrite a vocal WAV with long silent gaps removed.
 
     Used on training data only — we want to feed the model singing, not
@@ -481,8 +491,12 @@ async def _trim_silence(path: Path) -> None:
 
     Falls back to the original file if the filter strips too much (e.g.
     threshold mismatched to a quiet track), so the pipeline never ends
-    up with an empty vocal."""
-    if not config.TRAIN_TRIM_SILENCE:
+    up with an empty vocal.
+
+    `enabled=None` defers to config.TRAIN_TRIM_SILENCE."""
+    if enabled is None:
+        enabled = config.TRAIN_TRIM_SILENCE
+    if not enabled:
         return
     tmp = path.with_suffix(".trimmed.wav")
     db = config.TRAIN_SILENCE_THRESHOLD_DB
@@ -561,6 +575,13 @@ async def run_training(job: Job) -> None:
     vocoder = settings.get("vocoder", config.TRAIN_VOCODER)
     save_every = int(settings.get("save_every", config.TRAIN_SAVE_EVERY))
     batch_size = int(settings.get("batch_size", config.TRAIN_BATCH_SIZE))
+    cut_preprocess = settings.get("cut_preprocess") or config.TRAIN_CUT_PREPROCESS
+    two_pass_isolation = settings.get("two_pass_isolation")
+    if two_pass_isolation is None:
+        two_pass_isolation = config.TWO_PASS_ISOLATION
+    trim_silence = settings.get("trim_silence")
+    if trim_silence is None:
+        trim_silence = config.TRAIN_TRIM_SILENCE
     # total_epoch is resolved after the download loop so it can scale with
     # the number of songs that actually downloaded successfully.
 
@@ -620,10 +641,12 @@ async def run_training(job: Job) -> None:
         skipped: list[tuple[Path, str]] = []
         for i, song in enumerate(downloaded, 1):
             try:
-                stems = await isolate(song, vocals_dir, both_stems=False)
+                stems = await isolate(
+                    song, vocals_dir, both_stems=False, two_pass=two_pass_isolation,
+                )
                 if "vocals" not in stems:
                     raise RuntimeError("separator returned no vocals stem")
-                await _trim_silence(stems["vocals"])
+                await _trim_silence(stems["vocals"], enabled=trim_silence)
                 isolated.append(stems["vocals"])
             except Exception as exc:
                 log.warning("isolation failed for %s: %s; skipping", song.name, exc)
@@ -651,7 +674,9 @@ async def run_training(job: Job) -> None:
         # 3. Preprocess
         await _set(job, stage="preprocessing", progress=35,
                    message="preprocessing dataset")
-        await applio_runner.preprocess(slug, vocals_dir, sample_rate)
+        await applio_runner.preprocess(
+            slug, vocals_dir, sample_rate, cut_preprocess=cut_preprocess,
+        )
 
         # 4. Extract features
         await _set(job, stage="extracting", progress=45,
@@ -743,7 +768,11 @@ async def run_cover(job: Job) -> None:
     audio_url: str = job.payload["audio_url"]
     settings: dict = job.payload.get("settings", {})
     pitch: int = int(settings.get("pitch", 0))
-    epoch: int | None = settings.get("epoch")  # optional, pick a specific checkpoint
+    epoch: int | None = settings.get("epoch")
+    index_rate: float | None = settings.get("index_rate")
+    protect: float | None = settings.get("protect")
+    volume_envelope: float | None = settings.get("volume_envelope")
+    skip_isolation: bool = bool(settings.get("skip_isolation", False))
 
     job_dir = config.JOBS_ROOT / job.id
     job_dir.mkdir(parents=True, exist_ok=True)
@@ -754,11 +783,19 @@ async def run_cover(job: Job) -> None:
         await _set(job, stage="downloading", progress=5, message="fetching audio")
         input_audio = await download_audio(audio_url, job_dir, "input")
 
-        # 2. Isolate (both stems)
-        await _set(job, stage="isolating", progress=20, message="separating vocals")
-        stems = await isolate(input_audio, job_dir, both_stems=True)
-        vocals_in = stems["vocals"]
-        instrumental = stems["instrumental"]
+        # 2. Isolate (both stems) — unless caller said the input is already
+        #    a clean vocal stem, in which case we route it straight to convert
+        #    and skip the final mix step (no instrumental to remix with).
+        if skip_isolation:
+            await _set(job, stage="isolating", progress=20,
+                       message="skipping isolation (input is pre-isolated)")
+            vocals_in = input_audio
+            instrumental: Path | None = None
+        else:
+            await _set(job, stage="isolating", progress=20, message="separating vocals")
+            stems = await isolate(input_audio, job_dir, both_stems=True)
+            vocals_in = stems["vocals"]
+            instrumental = stems.get("instrumental")
 
         # 3. Find checkpoint
         if epoch is not None:
@@ -777,11 +814,18 @@ async def run_cover(job: Job) -> None:
         # 4. Convert
         await _set(job, stage="converting", progress=50, message="converting voice")
         converted = job_dir / "converted.wav"
-        await applio_runner.infer(pth, idx, vocals_in, converted, pitch=pitch)
+        await applio_runner.infer(
+            pth, idx, vocals_in, converted, pitch=pitch,
+            index_rate=index_rate, protect=protect, volume_envelope=volume_envelope,
+        )
 
-        # 5. Mix
-        await _set(job, stage="mixing", progress=85, message="mixing final track")
-        await mix(converted, instrumental, output_path)
+        # 5. Mix (skipped when skip_isolation — output is just the converted vocal)
+        if instrumental is not None:
+            await _set(job, stage="mixing", progress=85, message="mixing final track")
+            await mix(converted, instrumental, output_path)
+        else:
+            await _set(job, stage="mixing", progress=85, message="copying converted vocal")
+            shutil.copyfile(converted, output_path)
 
         job.result = {
             "output_path": str(output_path),

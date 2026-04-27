@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
+  ChevronDown,
   GraduationCap,
   ImagePlus,
   Loader2,
   ListMusic,
+  Settings2,
   Tag,
   User,
 } from "lucide-react";
@@ -138,6 +140,88 @@ export default function TrainPage() {
           <p className="hint">{t("songUrlsHint")}</p>
         </div>
 
+        <details className="group rounded-xl border bg-card text-card-foreground">
+          <summary className="flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
+            <span className="inline-flex items-center gap-1.5">
+              <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+              {t("advanced")}
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-5 border-t p-4 sm:p-5">
+            <p className="hint">{t("advancedHint")}</p>
+
+            <div className="space-y-1.5">
+              <label htmlFor="totalEpoch" className="label">
+                {t("totalEpoch")}
+              </label>
+              <input
+                id="totalEpoch"
+                name="totalEpoch"
+                type="text"
+                inputMode="numeric"
+                placeholder={t("totalEpochAuto")}
+                className="input"
+                dir="ltr"
+              />
+              <p className="hint">{t("totalEpochHint")}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="vocoder" className="label">
+                {t("vocoder")}
+              </label>
+              <div className="relative">
+                <select
+                  id="vocoder"
+                  name="vocoder"
+                  defaultValue=""
+                  className="input appearance-none pe-10"
+                >
+                  <option value="">—</option>
+                  <option value="RefineGAN">RefineGAN</option>
+                  <option value="HiFi-GAN">HiFi-GAN</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              </div>
+              <p className="hint">{t("vocoderHint")}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="cutPreprocess" className="label">
+                {t("cutPreprocess")}
+              </label>
+              <div className="relative">
+                <select
+                  id="cutPreprocess"
+                  name="cutPreprocess"
+                  defaultValue=""
+                  className="input appearance-none pe-10"
+                >
+                  <option value="">—</option>
+                  <option value="Skip">Skip</option>
+                  <option value="Simple">Simple</option>
+                  <option value="Automatic">Automatic</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              </div>
+              <p className="hint">{t("cutPreprocessHint")}</p>
+            </div>
+
+            <Toggle
+              name="twoPassIsolation"
+              label={t("twoPassIsolation")}
+              hint={t("twoPassIsolationHint")}
+            />
+
+            <Toggle
+              name="trimSilence"
+              label={t("trimSilence")}
+              hint={t("trimSilenceHint")}
+            />
+          </div>
+        </details>
+
         <button type="submit" disabled={pending} className="btn btn-primary w-full">
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -148,6 +232,30 @@ export default function TrainPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+function Toggle({
+  name,
+  label,
+  hint,
+}: {
+  name: string;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        name={name}
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-input bg-background text-primary focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">{label}</span>
+        {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
+      </span>
+    </label>
   );
 }
 

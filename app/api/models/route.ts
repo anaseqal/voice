@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { requireSessionOrJson } from "@/lib/auth";
-import { worker } from "@/lib/runpod";
+import { worker, type TrainSettings } from "@/lib/runpod";
 import { saveAvatar } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 
@@ -14,6 +14,25 @@ const FormSchema = z.object({
   slug: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,40}$/),
   songUrls: z.array(SongUrl).min(1).max(50),
 });
+
+function parseTrainSettings(form: FormData): TrainSettings {
+  const s: TrainSettings = {};
+  const totalEpoch = form.get("totalEpoch");
+  if (typeof totalEpoch === "string" && totalEpoch !== "" && totalEpoch !== "auto") {
+    const n = parseInt(totalEpoch, 10);
+    if (Number.isFinite(n) && n > 0) s.total_epoch = n;
+  }
+  const vocoder = form.get("vocoder");
+  if (typeof vocoder === "string" && vocoder !== "") s.vocoder = vocoder;
+  const twoPass = form.get("twoPassIsolation");
+  if (twoPass !== null) s.two_pass_isolation = twoPass === "on" || twoPass === "true";
+  const trim = form.get("trimSilence");
+  if (trim !== null) s.trim_silence = trim === "on" || trim === "true";
+  const cut = form.get("cutPreprocess");
+  if (cut === "Skip" || cut === "Simple" || cut === "Automatic")
+    s.cut_preprocess = cut;
+  return s;
+}
 
 export async function GET() {
   const auth = await requireSessionOrJson();
@@ -87,6 +106,7 @@ export async function POST(req: NextRequest) {
       song_urls: parsed.data.songUrls,
       callback_url: callbackUrl,
       callback_token: env.CALLBACK_BEARER_TOKEN,
+      settings: parseTrainSettings(form),
     });
     await db.model.update({
       where: { id: model.id },

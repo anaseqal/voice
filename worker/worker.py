@@ -44,6 +44,10 @@ class TrainSettings(BaseModel):
     total_epoch: int | None = None
     save_every: int | None = None
     batch_size: int | None = None
+    # Advanced overrides — null means "use worker default".
+    two_pass_isolation: bool | None = None
+    trim_silence: bool | None = None
+    cut_preprocess: str | None = None  # Skip | Simple | Automatic
 
 
 class TrainRequest(BaseModel):
@@ -61,6 +65,13 @@ class TrainRequest(BaseModel):
 class CoverSettings(BaseModel):
     pitch: int = 0
     epoch: int | None = None  # specific checkpoint epoch; default = best
+    # Advanced inference overrides — null means "use worker default".
+    index_rate: float | None = None     # 0..1, default 0.65
+    protect: float | None = None        # 0..0.5, default 0.33
+    volume_envelope: float | None = None  # 0..1, default 1.0
+    # Treat the input as already-isolated vocals: skip both isolation passes
+    # and the final mix-with-instrumental. Output is the converted vocal only.
+    skip_isolation: bool = False
 
 
 class CoverRequest(BaseModel):

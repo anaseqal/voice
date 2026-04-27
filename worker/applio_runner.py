@@ -51,7 +51,12 @@ async def _run(cmd: list[str], cwd: Path | None = None) -> str:
     return output
 
 
-async def preprocess(model_name: str, dataset_path: Path, sample_rate: int) -> None:
+async def preprocess(
+    model_name: str,
+    dataset_path: Path,
+    sample_rate: int,
+    cut_preprocess: str | None = None,
+) -> None:
     cmd = [
         str(config.APPLIO_PYTHON),
         "core.py",
@@ -60,7 +65,7 @@ async def preprocess(model_name: str, dataset_path: Path, sample_rate: int) -> N
         "--dataset_path", str(dataset_path),
         "--sample_rate", str(sample_rate),
         "--cpu_cores", "4",
-        "--cut_preprocess", config.TRAIN_CUT_PREPROCESS,
+        "--cut_preprocess", cut_preprocess or config.TRAIN_CUT_PREPROCESS,
     ]
     await _run(cmd, cwd=config.APPLIO_DIR)
 
@@ -143,6 +148,9 @@ async def infer(
     input_path: Path,
     output_path: Path,
     pitch: int = 0,
+    index_rate: float | None = None,
+    protect: float | None = None,
+    volume_envelope: float | None = None,
 ) -> None:
     # Note: --hop_length was removed from Applio's infer CLI. Don't pass it.
     cmd = [
@@ -154,9 +162,11 @@ async def infer(
         "--input_path", str(input_path),
         "--output_path", str(output_path),
         "--pitch", str(pitch),
-        "--index_rate", str(config.INFER_INDEX_RATE),
-        "--volume_envelope", str(config.INFER_VOLUME_ENVELOPE),
-        "--protect", str(config.INFER_PROTECT),
+        "--index_rate", str(index_rate if index_rate is not None else config.INFER_INDEX_RATE),
+        "--volume_envelope", str(
+            volume_envelope if volume_envelope is not None else config.INFER_VOLUME_ENVELOPE
+        ),
+        "--protect", str(protect if protect is not None else config.INFER_PROTECT),
         "--f0_method", config.INFER_F0_METHOD,
         "--embedder_model", config.TRAIN_EMBEDDER,
         "--export_format", "WAV",

@@ -2,8 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { requireSessionOrJson } from "@/lib/auth";
-import { worker } from "@/lib/runpod";
+import { worker, type CoverSettings } from "@/lib/runpod";
 import { saveUpload } from "@/lib/storage";
+
+function parseCoverSettings(form: FormData, pitch: number, epoch: number | null): CoverSettings {
+  const s: CoverSettings = { pitch };
+  if (epoch !== null) s.epoch = epoch;
+  const indexRate = form.get("indexRate");
+  if (typeof indexRate === "string" && indexRate !== "") {
+    const n = parseFloat(indexRate);
+    if (Number.isFinite(n)) s.index_rate = Math.max(0, Math.min(1, n));
+  }
+  const protect = form.get("protect");
+  if (typeof protect === "string" && protect !== "") {
+    const n = parseFloat(protect);
+    if (Number.isFinite(n)) s.protect = Math.max(0, Math.min(0.5, n));
+  }
+  const skipIsolation = form.get("skipIsolation");
+  if (skipIsolation !== null)
+    s.skip_isolation = skipIsolation === "on" || skipIsolation === "true";
+  return s;
+}
 
 export async function GET() {
   const auth = await requireSessionOrJson();
@@ -81,7 +100,7 @@ export async function POST(req: NextRequest) {
       audio_url: workerAudioUrl,
       callback_url: callbackUrl,
       callback_token: env.CALLBACK_BEARER_TOKEN,
-      settings: { pitch, ...(epoch !== null ? { epoch } : {}) },
+      settings: parseCoverSettings(form, pitch, epoch),
     });
     await db.cover.update({
       where: { id: cover.id },

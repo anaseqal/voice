@@ -106,7 +106,20 @@
     "submit": "Start training",
     "submitting": "Starting…",
     "submitted": "Training queued",
-    "submitFailed": "Couldn't start training"
+    "submitFailed": "Couldn't start training",
+    "advanced": "Advanced settings",
+    "advancedHint": "Override worker defaults for this run only.",
+    "totalEpoch": "Total epochs",
+    "totalEpochAuto": "Auto (scaled by song count)",
+    "totalEpochHint": "More epochs = longer training. RVC typically plateaus by 200–400. Default auto-scales to dataset size.",
+    "vocoder": "Vocoder",
+    "vocoderHint": "RefineGAN is newer and often clearer; HiFi-GAN is the classic RVC choice.",
+    "twoPassIsolation": "2-pass vocal isolation",
+    "twoPassIsolationHint": "Adds a karaoke-cleanup pass to strip residual instruments. Off by default — pass 2 also strips vocal character (breath, harmonies) which usually hurts training quality.",
+    "trimSilence": "Auto-trim silence",
+    "trimSilenceHint": "Removes long silent gaps from the isolated vocal. Off by default — aggressive trimming can produce 'spliced' sounding training data.",
+    "cutPreprocess": "Preprocess strategy",
+    "cutPreprocessHint": "How Applio chunks audio before training. Automatic is the smart default; Skip and Simple are simpler/faster but less precise."
   },
   "cover": {
     "title": "Generate a cover",
@@ -125,7 +138,17 @@
     "submit": "Generate",
     "submitting": "Submitting…",
     "submitted": "Cover queued",
-    "submitFailed": "Couldn't start cover"
+    "submitFailed": "Couldn't start cover",
+    "advanced": "Advanced settings",
+    "advancedHint": "Inference knobs. Reset to defaults if unsure.",
+    "indexRate": "Index influence",
+    "indexRateHint": "How much of the trained singer's 'personality' is applied. Higher = more character but stiffer phrasing. 0.5–0.7 works well for most models.",
+    "protect": "Protect voiceless segments",
+    "protectHint": "How much of the original is kept on breaths/silence/consonants. Higher reduces 'wind/babble' artefacts but slightly muddies consonants.",
+    "skipIsolation": "Input is already isolated vocals",
+    "skipIsolationHint": "Skip the vocal/instrumental separation step. Output will be the converted vocal alone (no remix with original instrumental).",
+    "epoch": "Specific checkpoint epoch",
+    "epochHint": "Pick a particular saved epoch instead of the auto-detected best. Useful when comparing checkpoints."
   },
   "recorder": {
     "title": "Record audio",

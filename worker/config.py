@@ -32,7 +32,12 @@ UVR_MODEL = _env("UVR_MODEL", "UVR-MDX-NET-Inst_HQ_4.onnx")
 # Pass 2 (optional) cleans up residual instruments inside the vocal stem.
 # Set TWO_PASS_ISOLATION=0 to disable.
 UVR_CLEANUP_MODEL = _env("UVR_CLEANUP_MODEL", "5_HP-Karaoke-UVR.pth")
-TWO_PASS_ISOLATION = _env("TWO_PASS_ISOLATION", "1") not in ("0", "false", "no", "")
+# Default OFF: Applio's Gradio UI uses 1-pass isolation only. Pass 2
+# (5_HP-Karaoke-UVR) cleans residual instruments from the vocal stem but
+# also strips vocal *character* (breaths, harmonies, room tone) which is
+# exactly what training needs to learn. Empirically: 3-song manual training
+# without pass 2 produced better-sounding models than 8-song training with it.
+TWO_PASS_ISOLATION = _env("TWO_PASS_ISOLATION", "0") not in ("0", "false", "no", "")
 # Cache loaded Separator instances across songs/passes. Faster, but suspected
 # of corrupting state in some audio-separator versions when output_dir or
 # output_single_stem is mutated post-construction. Default off until proven.
@@ -47,7 +52,11 @@ TRAIN_TOTAL_EPOCHS = _env("TRAIN_TOTAL_EPOCHS", "auto")  # int or "auto"
 TRAIN_SAVE_EVERY = int(_env("TRAIN_SAVE_EVERY", "25"))
 TRAIN_SILENT_FILES = int(_env("TRAIN_SILENT_FILES", "2"))
 TRAIN_CUT_PREPROCESS = _env("TRAIN_CUT_PREPROCESS", "Automatic")  # Skip | Simple | Automatic
-TRAIN_TRIM_SILENCE = _env("TRAIN_TRIM_SILENCE", "1") not in ("0", "false", "no", "")
+# Default OFF: Applio's Gradio doesn't pre-trim silence. Aggressive trim chops
+# breath/transition tails and produces 'spliced'-sounding models. Re-enable
+# per-job from the train form if you have a dataset with very long instrumental
+# gaps that would otherwise dominate epochs.
+TRAIN_TRIM_SILENCE = _env("TRAIN_TRIM_SILENCE", "0") not in ("0", "false", "no", "")
 TRAIN_SILENCE_THRESHOLD_DB = int(_env("TRAIN_SILENCE_THRESHOLD_DB", "-40"))
 TRAIN_SILENCE_MIN_DUR = float(_env("TRAIN_SILENCE_MIN_DUR", "0.7"))  # seconds
 

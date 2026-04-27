@@ -20,6 +20,26 @@ export type WorkerJob = {
   result: Record<string, unknown>;
 };
 
+export type TrainSettings = {
+  total_epoch?: number;
+  vocoder?: string;
+  sample_rate?: number;
+  save_every?: number;
+  batch_size?: number;
+  two_pass_isolation?: boolean;
+  trim_silence?: boolean;
+  cut_preprocess?: "Skip" | "Simple" | "Automatic";
+};
+
+export type CoverSettings = {
+  pitch?: number;
+  epoch?: number;
+  index_rate?: number;
+  protect?: number;
+  volume_envelope?: number;
+  skip_isolation?: boolean;
+};
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const url = `${env.WORKER_BASE_URL.replace(/\/$/, "")}${path}`;
   const res = await fetch(url, {
@@ -46,7 +66,7 @@ export const worker = {
     song_urls: string[];
     callback_url: string;
     callback_token: string;
-    settings?: Record<string, unknown>;
+    settings?: TrainSettings;
     reuse_existing?: boolean;
   }) =>
     call<{ job_id: string; status: string }>("/train", {
@@ -59,7 +79,7 @@ export const worker = {
     audio_url: string;
     callback_url: string;
     callback_token: string;
-    settings?: { pitch?: number; epoch?: number };
+    settings?: CoverSettings;
   }) =>
     call<{ job_id: string; status: string }>("/cover", {
       method: "POST",

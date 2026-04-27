@@ -6,12 +6,15 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   Check,
+  ChevronDown,
   FileAudio,
   Link2,
   Loader2,
   Mic,
   Mic2,
   Music,
+  Settings2,
+  Sliders,
   Sparkles,
   Trash2,
   Upload,
@@ -43,6 +46,9 @@ export default function CoverPage() {
   const [recordingDuration, setRecordingDuration] = useState<number | null>(null);
   const [audioUrl, setAudioUrl] = useState("");
   const [pitch, setPitch] = useState(0);
+  const [indexRate, setIndexRate] = useState(0.65);
+  const [protect, setProtect] = useState(0.5);
+  const [skipIsolation, setSkipIsolation] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -83,6 +89,9 @@ export default function CoverPage() {
     if (file) fd.set("audio", file);
     if (audioUrl.trim()) fd.set("audioUrl", audioUrl.trim());
     fd.set("pitch", String(pitch));
+    fd.set("indexRate", String(indexRate));
+    fd.set("protect", String(protect));
+    if (skipIsolation) fd.set("skipIsolation", "on");
 
     startTransition(async () => {
       const res = await fetch("/api/covers", { method: "POST", body: fd });
@@ -240,6 +249,59 @@ export default function CoverPage() {
           <p className="hint">{t("pitchHint")}</p>
         </div>
 
+        {/* Advanced */}
+        <details className="group rounded-xl border bg-card text-card-foreground">
+          <summary className="flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
+            <span className="inline-flex items-center gap-1.5">
+              <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+              {t("advanced")}
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-5 border-t p-4 sm:p-5">
+            <p className="hint">{t("advancedHint")}</p>
+
+            <Slider
+              label={t("indexRate")}
+              hint={t("indexRateHint")}
+              value={indexRate}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={setIndexRate}
+              icon={Sliders}
+            />
+
+            <Slider
+              label={t("protect")}
+              hint={t("protectHint")}
+              value={protect}
+              min={0}
+              max={0.5}
+              step={0.01}
+              onChange={setProtect}
+              icon={Sliders}
+            />
+
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={skipIsolation}
+                onChange={(e) => setSkipIsolation(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-input bg-background text-primary focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">
+                  {t("skipIsolation")}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t("skipIsolationHint")}
+                </span>
+              </span>
+            </label>
+          </div>
+        </details>
+
         <button type="submit" disabled={pending} className="btn btn-primary w-full">
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -310,6 +372,50 @@ function RecordedBadge({
         <Trash2 className="h-4 w-4" />
         {t("retake")}
       </button>
+    </div>
+  );
+}
+
+function Slider({
+  label,
+  hint,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  icon: Icon,
+}: {
+  label: string;
+  hint?: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  icon?: typeof Sliders;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="label inline-flex items-center gap-1.5">
+          {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+          {label}
+        </span>
+        <span className="text-xs font-medium tabular-nums text-muted-foreground">
+          {value.toFixed(2)}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full accent-primary"
+      />
+      {hint && <p className="hint">{hint}</p>}
     </div>
   );
 }
