@@ -293,6 +293,10 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Window over which we measure recent rate for the ETA. Long enough to smooth
+// out polling jitter, short enough to track transitions between stages.
+const ETA_WINDOW_MS = 90_000;
+
 function TimeStats({
   startedAt,
   completedAt,
@@ -312,11 +316,28 @@ function TimeStats({
     return () => clearInterval(handle);
   }, [isRunning]);
 
+  // Sliding-window samples for ETA. We push on every progress change and drop
+  // anything older than ETA_WINDOW_MS. Fewer than 2 samples → no ETA yet.
+  const samplesRef = useRef<{ t: number; p: number }[]>([]);
+  useEffect(() => {
+    if (!isRunning || progress <= 0 || progress >= 100) {
+      samplesRef.current = [];
+      return;
+    }
+    const t = Date.now();
+    const buf = samplesRef.current;
+    const last = buf[buf.length - 1];
+    if (!last || last.p !== progress) {
+      buf.push({ t, p: progress });
+    }
+    samplesRef.current = buf.filter((s) => t - s.t <= ETA_WINDOW_MS);
+  }, [progress, isRunning]);
+
   if (!startedAt) return null;
   const start = new Date(startedAt).getTime();
   const end = completedAt ? new Date(completedAt).getTime() : now;
   const elapsedSec = Math.max(0, (end - start) / 1000);
-  const eta = isRunning ? estimateEta(progress, elapsedSec) : null;
+  const eta = isRunning ? estimateEta(samplesRef.current, progress) : null;
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground tabular-nums">

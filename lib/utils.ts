@@ -42,15 +42,26 @@ export function fmtDuration(seconds: number): string {
   return `${sec}s`;
 }
 
-/** Estimate remaining seconds from progress (0-100) and elapsed time. */
+/** Estimate remaining seconds from a buffer of recent (timestamp_ms, progress)
+ * samples. Uses the rate over the most-recent window so ETA reflects the
+ * *current* phase's pace rather than the average since job start — important
+ * because our pipeline progress is wildly non-linear (training is 50% of the
+ * progress range but ~85% of wall time). Returns null when there isn't enough
+ * data, progress hasn't moved in the window, or the job is done. */
 export function estimateEta(
-  progress: number,
-  elapsedSec: number
+  samples: { t: number; p: number }[],
+  currentProgress: number
 ): number | null {
-  if (progress <= 0 || progress >= 100 || elapsedSec <= 0) return null;
-  const rate = progress / elapsedSec; // %/sec
-  const remainingPct = 100 - progress;
-  return remainingPct / rate;
+  if (currentProgress <= 0 || currentProgress >= 100) return null;
+  if (samples.length < 2) return null;
+  const oldest = samples[0];
+  const newest = samples[samples.length - 1];
+  const dp = newest.p - oldest.p;
+  const dt = (newest.t - oldest.t) / 1000;
+  if (dp <= 0 || dt <= 0) return null;
+  const rate = dp / dt; // %/sec over the window
+  const remaining = 100 - currentProgress;
+  return remaining / rate;
 }
 
 export function statusColor(status: string): string {
