@@ -27,6 +27,7 @@ type Model = {
   bestEpoch: number | null;
   defaultEpoch: number | null;
   checkpoints: string | null;
+  settingsJson: string | null;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -240,6 +241,10 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
               onPick={setDefaultEpoch}
             />
           )}
+
+          {model.settingsJson && (
+            <SettingsSummary settingsJson={model.settingsJson} />
+          )}
         </>
       )}
 
@@ -275,6 +280,53 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
           value={fmtDate(model.completedAt) || tCommon("none")}
         />
       </div>
+    </div>
+  );
+}
+
+function SettingsSummary({ settingsJson }: { settingsJson: string }) {
+  const t = useTranslations("model");
+  const tTrain = useTranslations("train");
+  let s: Record<string, unknown>;
+  try {
+    s = JSON.parse(settingsJson) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const rows: { label: string; value: string }[] = [];
+  if (typeof s.total_epoch === "number")
+    rows.push({ label: tTrain("totalEpoch"), value: String(s.total_epoch) });
+  else
+    rows.push({ label: tTrain("totalEpoch"), value: t("settingsAuto") });
+
+  if (typeof s.vocoder === "string" && s.vocoder)
+    rows.push({ label: tTrain("vocoder"), value: s.vocoder });
+  if (typeof s.cut_preprocess === "string" && s.cut_preprocess)
+    rows.push({ label: tTrain("cutPreprocess"), value: s.cut_preprocess });
+  if (typeof s.two_pass_isolation === "boolean")
+    rows.push({
+      label: tTrain("twoPassIsolation"),
+      value: s.two_pass_isolation ? t("settingsOn") : t("settingsOff"),
+    });
+  if (typeof s.trim_silence === "boolean")
+    rows.push({
+      label: tTrain("trimSilence"),
+      value: s.trim_silence ? t("settingsOn") : t("settingsOff"),
+    });
+
+  if (rows.length === 0) return null;
+  return (
+    <div className="surface p-4 sm:p-5">
+      <h2 className="mb-3 text-sm font-medium">{t("settingsUsed")}</h2>
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {rows.map((r) => (
+          <div key={r.label}>
+            <dt className="text-xs text-muted-foreground">{r.label}</dt>
+            <dd className="text-sm font-medium">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

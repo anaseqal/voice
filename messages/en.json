@@ -99,7 +99,11 @@
     "badgeActive": "Active",
     "useDefault": "Use default (best)",
     "checkpointSet": "Checkpoint updated",
-    "checkpointFailed": "Couldn't update checkpoint"
+    "checkpointFailed": "Couldn't update checkpoint",
+    "settingsUsed": "Trained with",
+    "settingsAuto": "Auto",
+    "settingsOn": "On",
+    "settingsOff": "Off"
   },
   "train": {
     "title": "Train a new model",

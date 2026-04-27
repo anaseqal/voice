@@ -99,7 +99,11 @@
     "badgeActive": "نشطة",
     "useDefault": "استخدم الافتراضي (الأفضل)",
     "checkpointSet": "تم تحديث نقطة التحقق",
-    "checkpointFailed": "تعذّر تحديث نقطة التحقق"
+    "checkpointFailed": "تعذّر تحديث نقطة التحقق",
+    "settingsUsed": "تم التدريب باستخدام",
+    "settingsAuto": "تلقائي",
+    "settingsOn": "مفعّل",
+    "settingsOff": "معطّل"
   },
   "train": {
     "title": "تدريب نموذج جديد",

@@ -1,8 +1,19 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+
+const SETTINGS_STORAGE_KEY = "voice:lastTrainSettings";
+
+type SavedSettings = {
+  epochMode: "auto" | "set";
+  epochValue: number;
+  vocoder: string;
+  cutPreprocess: string;
+  twoPassIsolation: boolean;
+  trimSilence: boolean;
+};
 import {
   ChevronDown,
   GraduationCap,
@@ -24,7 +35,31 @@ export default function TrainPage() {
   const [avatar, setAvatar] = useState<File | null>(null);
   const [epochMode, setEpochMode] = useState<"auto" | "set">("auto");
   const [epochValue, setEpochValue] = useState<number>(500);
+  const [vocoder, setVocoder] = useState("");
+  const [cutPreprocess, setCutPreprocess] = useState("");
+  const [twoPassIsolation, setTwoPassIsolation] = useState(false);
+  const [trimSilence, setTrimSilence] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  // Restore the last submitted advanced settings on mount so repeat training
+  // sessions don't have to re-enter Total epochs / vocoder / etc. each time.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw) as Partial<SavedSettings>;
+      if (s.epochMode === "auto" || s.epochMode === "set")
+        setEpochMode(s.epochMode);
+      if (typeof s.epochValue === "number") setEpochValue(s.epochValue);
+      if (typeof s.vocoder === "string") setVocoder(s.vocoder);
+      if (typeof s.cutPreprocess === "string") setCutPreprocess(s.cutPreprocess);
+      if (typeof s.twoPassIsolation === "boolean")
+        setTwoPassIsolation(s.twoPassIsolation);
+      if (typeof s.trimSilence === "boolean") setTrimSilence(s.trimSilence);
+    } catch {
+      // corrupt blob — ignore, user starts fresh
+    }
+  }, []);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,13 +69,16 @@ export default function TrainPage() {
       .filter(Boolean);
     if (urls.length < 1) return toast.error(t("submitFailed"));
 
-    const fd = new FormData(e.currentTarget as HTMLFormElement);
+    const fd = new FormData();
     fd.set("displayName", displayName);
     fd.set("slug", slug || slugify(displayName));
     fd.set("songUrls", urls.join("\n"));
     if (avatar) fd.set("avatar", avatar);
     if (epochMode === "set") fd.set("totalEpoch", String(epochValue));
-    else fd.delete("totalEpoch");
+    if (vocoder) fd.set("vocoder", vocoder);
+    if (cutPreprocess) fd.set("cutPreprocess", cutPreprocess);
+    if (twoPassIsolation) fd.set("twoPassIsolation", "on");
+    if (trimSilence) fd.set("trimSilence", "on");
 
     startTransition(async () => {
       const res = await fetch("/api/models", { method: "POST", body: fd });
@@ -48,6 +86,20 @@ export default function TrainPage() {
       if (!res.ok) {
         toast.error(data.error ?? t("submitFailed"));
         return;
+      }
+      // Save what we sent so the form pre-fills the next time.
+      try {
+        const saved: SavedSettings = {
+          epochMode,
+          epochValue,
+          vocoder,
+          cutPreprocess,
+          twoPassIsolation,
+          trimSilence,
+        };
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(saved));
+      } catch {
+        // localStorage may be disabled (private mode, etc.) — non-fatal
       }
       toast.success(t("submitted"));
       router.push(`/models/${data.id}`);
@@ -199,8 +251,8 @@ export default function TrainPage() {
               <div className="relative">
                 <select
                   id="vocoder"
-                  name="vocoder"
-                  defaultValue=""
+                  value={vocoder}
+                  onChange={(e) => setVocoder(e.target.value)}
                   className="input appearance-none pe-10"
                 >
                   <option value="">—</option>
@@ -219,8 +271,8 @@ export default function TrainPage() {
               <div className="relative">
                 <select
                   id="cutPreprocess"
-                  name="cutPreprocess"
-                  defaultValue=""
+                  value={cutPreprocess}
+                  onChange={(e) => setCutPreprocess(e.target.value)}
                   className="input appearance-none pe-10"
                 >
                   <option value="">—</option>
@@ -234,13 +286,15 @@ export default function TrainPage() {
             </div>
 
             <Toggle
-              name="twoPassIsolation"
+              checked={twoPassIsolation}
+              onChange={setTwoPassIsolation}
               label={t("twoPassIsolation")}
               hint={t("twoPassIsolationHint")}
             />
 
             <Toggle
-              name="trimSilence"
+              checked={trimSilence}
+              onChange={setTrimSilence}
               label={t("trimSilence")}
               hint={t("trimSilenceHint")}
             />
@@ -261,11 +315,13 @@ export default function TrainPage() {
 }
 
 function Toggle({
-  name,
+  checked,
+  onChange,
   label,
   hint,
 }: {
-  name: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
   label: string;
   hint?: string;
 }) {
@@ -273,7 +329,8 @@ function Toggle({
     <label className="flex cursor-pointer items-start gap-3">
       <input
         type="checkbox"
-        name={name}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
         className="mt-0.5 h-4 w-4 shrink-0 rounded border-input bg-background text-primary focus-visible:ring-2 focus-visible:ring-ring"
       />
       <span className="space-y-1">
