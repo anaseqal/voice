@@ -18,7 +18,12 @@ USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
     "(KHTML, like Gecko) Version/17.0 Safari/605.1.15"
 )
-DIRECT_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac"}
+DIRECT_AUDIO_EXTS = {
+    ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac",
+    # Browser MediaRecorder formats — Chrome/Firefox emit webm/opus,
+    # Safari emits mp4/m4a (already covered).
+    ".webm",
+}
 
 log = logging.getLogger(__name__)
 

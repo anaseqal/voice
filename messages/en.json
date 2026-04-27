@@ -114,7 +114,9 @@
     "model": "Voice model",
     "modelPlaceholder": "Choose a model",
     "audioSource": "Audio source",
+    "audioRecord": "Record",
     "audioUrl": "Audio URL",
+    "audioUrlTab": "From URL",
     "audioUpload": "Upload file",
     "pitch": "Pitch shift (semitones)",
     "pitchHint": "Negative for lower voices, positive for higher. 0 keeps the original key.",
@@ -124,6 +126,20 @@
     "submitting": "Submitting…",
     "submitted": "Cover queued",
     "submitFailed": "Couldn't start cover"
+  },
+  "recorder": {
+    "title": "Record audio",
+    "start": "Start recording",
+    "requesting": "Waiting for microphone access…",
+    "recording": "Recording",
+    "stop": "Stop",
+    "preview": "Preview",
+    "retake": "Re-record",
+    "use": "Use this recording",
+    "denied": "Microphone access denied",
+    "deniedHint": "Allow microphone access in your browser, then try again.",
+    "tryAgain": "Try again",
+    "hint": "Tap to record up to {max} minutes."
   },
   "covers": {
     "title": "Cover history",

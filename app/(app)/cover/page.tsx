@@ -6,16 +6,20 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   Check,
+  FileAudio,
   Link2,
   Loader2,
+  Mic,
   Mic2,
   Music,
   Sparkles,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Avatar } from "@/components/avatar";
-import { cn } from "@/lib/utils";
+import { MicRecorder } from "@/components/mic-recorder";
+import { cn, fmtDuration } from "@/lib/utils";
 
 type Model = {
   id: string;
@@ -25,6 +29,8 @@ type Model = {
   avatarPath: string | null;
 };
 
+type SourceTab = "record" | "upload" | "url";
+
 export default function CoverPage() {
   const router = useRouter();
   const t = useTranslations("cover");
@@ -32,7 +38,9 @@ export default function CoverPage() {
   const tModels = useTranslations("models");
   const [models, setModels] = useState<Model[]>([]);
   const [modelId, setModelId] = useState("");
+  const [source, setSource] = useState<SourceTab>("record");
   const [file, setFile] = useState<File | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState<number | null>(null);
   const [audioUrl, setAudioUrl] = useState("");
   const [pitch, setPitch] = useState(0);
   const [pending, startTransition] = useTransition();
@@ -48,6 +56,23 @@ export default function CoverPage() {
         if (ready[0] && !modelId) setModelId(ready[0].id);
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleRecorded(blob: File, durationSec: number) {
+    setFile(blob);
+    setRecordingDuration(durationSec);
+    setAudioUrl("");
+  }
+
+  function handleUploaded(f: File | null) {
+    setFile(f);
+    setRecordingDuration(null);
+  }
+
+  function clearAudio() {
+    setFile(null);
+    setRecordingDuration(null);
+    setAudioUrl("");
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,85 +136,180 @@ export default function CoverPage() {
           </div>
         </fieldset>
 
-        <div className="surface space-y-5 p-5 sm:p-6">
-          {/* File upload */}
-          <div className="space-y-1.5">
-            <label htmlFor="audio" className="label inline-flex items-center gap-1.5">
-              <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-              {t("audioUpload")}
-            </label>
-            <input
-              id="audio"
-              type="file"
-              accept="audio/*"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full cursor-pointer rounded-md border bg-background text-sm
-                         file:me-3 file:cursor-pointer file:rounded-md file:border-0
-                         file:bg-secondary file:px-4 file:py-2 file:text-secondary-foreground
-                         hover:file:bg-secondary/80"
-            />
-            {file && (
-              <p className="hint truncate" dir="ltr">
-                {file.name}
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            <span>{tCommon("none") === "—" ? "or" : tCommon("none")}</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          {/* URL */}
-          <div className="space-y-1.5">
-            <label htmlFor="audioUrl" className="label inline-flex items-center gap-1.5">
-              <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-              {t("audioUrl")}
-            </label>
-            <input
-              id="audioUrl"
-              type="url"
-              value={audioUrl}
-              onChange={(e) => setAudioUrl(e.target.value)}
-              placeholder="https://..."
-              dir="ltr"
-              className="input"
-            />
-          </div>
-
-          {/* Pitch */}
-          <div className="space-y-1.5">
-            <label htmlFor="pitch" className="label inline-flex items-center gap-1.5">
-              <Music className="h-3.5 w-3.5 text-muted-foreground" />
-              {t("pitch")}
-            </label>
-            <input
-              id="pitch"
-              type="number"
-              value={pitch}
-              onChange={(e) => setPitch(parseInt(e.target.value || "0", 10))}
-              className="input"
-              min={-12}
-              max={12}
-            />
-            <p className="hint">{t("pitchHint")}</p>
-          </div>
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="btn btn-primary w-full"
+        {/* Audio source — segmented tabs + tab body */}
+        <fieldset className="space-y-3">
+          <legend className="label">{t("audioSource")}</legend>
+          <div
+            role="tablist"
+            className="inline-flex w-full overflow-hidden rounded-md border bg-background p-0.5 sm:w-auto"
           >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            {pending ? t("submitting") : t("submit")}
-          </button>
+            <SourceTabBtn
+              icon={Mic}
+              label={t("audioRecord")}
+              active={source === "record"}
+              onClick={() => {
+                setSource("record");
+                clearAudio();
+              }}
+            />
+            <SourceTabBtn
+              icon={Upload}
+              label={t("audioUpload")}
+              active={source === "upload"}
+              onClick={() => {
+                setSource("upload");
+                clearAudio();
+              }}
+            />
+            <SourceTabBtn
+              icon={Link2}
+              label={t("audioUrlTab")}
+              active={source === "url"}
+              onClick={() => {
+                setSource("url");
+                clearAudio();
+              }}
+            />
+          </div>
+
+          {/* Tab body */}
+          {source === "record" && (
+            <>
+              {file && recordingDuration !== null ? (
+                <RecordedBadge
+                  durationSec={recordingDuration}
+                  onClear={clearAudio}
+                />
+              ) : (
+                <MicRecorder onUse={handleRecorded} />
+              )}
+            </>
+          )}
+
+          {source === "upload" && (
+            <div className="surface space-y-2 p-4 sm:p-5">
+              <input
+                id="audio"
+                type="file"
+                accept="audio/*"
+                onChange={(e) => handleUploaded(e.target.files?.[0] ?? null)}
+                className="block w-full cursor-pointer rounded-md border bg-background text-sm
+                           file:me-3 file:cursor-pointer file:rounded-md file:border-0
+                           file:bg-secondary file:px-4 file:py-2 file:text-secondary-foreground
+                           hover:file:bg-secondary/80"
+              />
+              {file && recordingDuration === null && (
+                <p className="hint inline-flex items-center gap-1.5" dir="ltr">
+                  <FileAudio className="h-3.5 w-3.5" />
+                  {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
+                </p>
+              )}
+            </div>
+          )}
+
+          {source === "url" && (
+            <div className="surface p-4 sm:p-5">
+              <input
+                id="audioUrl"
+                type="url"
+                value={audioUrl}
+                onChange={(e) => setAudioUrl(e.target.value)}
+                placeholder="https://..."
+                dir="ltr"
+                className="input"
+              />
+            </div>
+          )}
+        </fieldset>
+
+        {/* Pitch */}
+        <div className="surface space-y-1.5 p-4 sm:p-5">
+          <label htmlFor="pitch" className="label inline-flex items-center gap-1.5">
+            <Music className="h-3.5 w-3.5 text-muted-foreground" />
+            {t("pitch")}
+          </label>
+          <input
+            id="pitch"
+            type="number"
+            value={pitch}
+            onChange={(e) => setPitch(parseInt(e.target.value || "0", 10))}
+            className="input"
+            min={-12}
+            max={12}
+          />
+          <p className="hint">{t("pitchHint")}</p>
         </div>
+
+        <button type="submit" disabled={pending} className="btn btn-primary w-full">
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          {pending ? t("submitting") : t("submit")}
+        </button>
       </form>
+    </div>
+  );
+}
+
+function SourceTabBtn({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: typeof Mic;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-[4px] px-3 py-1.5 text-sm transition-colors sm:flex-initial",
+        active
+          ? "bg-secondary text-secondary-foreground"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+}
+
+function RecordedBadge({
+  durationSec,
+  onClear,
+}: {
+  durationSec: number;
+  onClear: () => void;
+}) {
+  const t = useTranslations("recorder");
+  return (
+    <div className="surface flex items-center gap-3 p-3 sm:p-4">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-green-500/15 text-green-600 dark:text-green-400">
+        <Check className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{t("preview")}</p>
+        <p className="text-xs tabular-nums text-muted-foreground">
+          {fmtDuration(durationSec)}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="btn btn-outline border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+        {t("retake")}
+      </button>
     </div>
   );
 }
