@@ -1,0 +1,133 @@
+{
+  "app": {
+    "name": "voice.ihub2",
+    "tagline": "استنساخ صوت المغنين"
+  },
+  "nav": {
+    "cover": "أداء",
+    "train": "تدريب",
+    "models": "النماذج",
+    "history": "السجل",
+    "signOut": "تسجيل الخروج",
+    "theme": "المظهر",
+    "themeLight": "فاتح",
+    "themeDark": "داكن",
+    "themeSystem": "النظام",
+    "language": "اللغة"
+  },
+  "common": {
+    "loading": "جارٍ التحميل…",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "retry": "إعادة المحاولة",
+    "retrying": "جارٍ إعادة المحاولة…",
+    "back": "رجوع",
+    "yes": "نعم",
+    "no": "لا",
+    "created": "تاريخ الإنشاء",
+    "completed": "تاريخ الإكمال",
+    "started": "تاريخ البدء",
+    "search": "بحث",
+    "none": "—",
+    "actions": "الإجراءات",
+    "open": "فتح",
+    "download": "تنزيل",
+    "copy": "نسخ",
+    "copied": "تم النسخ"
+  },
+  "status": {
+    "queued": "في الانتظار",
+    "training": "قيد التدريب",
+    "running": "قيد التشغيل",
+    "ready": "جاهز",
+    "done": "مكتمل",
+    "failed": "فشل",
+    "pending": "معلّق",
+    "downloaded": "تم التنزيل",
+    "isolated": "تم العزل"
+  },
+  "stages": {
+    "downloading": "تنزيل الأغاني",
+    "isolating": "عزل الأصوات",
+    "preprocessing": "معالجة البيانات",
+    "extracting": "استخراج النغمات والسمات",
+    "training": "تدريب النموذج",
+    "indexing": "بناء الفهرس",
+    "queued": "في الانتظار",
+    "ready": "جاهز",
+    "failed": "فشل"
+  },
+  "login": {
+    "title": "تسجيل الدخول",
+    "subtitle": "أدخل بيانات الاعتماد للمتابعة",
+    "username": "اسم المستخدم",
+    "password": "كلمة المرور",
+    "submit": "تسجيل الدخول",
+    "submitting": "جارٍ تسجيل الدخول…",
+    "invalid": "بيانات الاعتماد غير صحيحة"
+  },
+  "models": {
+    "title": "النماذج",
+    "empty": "لا توجد نماذج بعد. ابدأ بتدريب أحدها.",
+    "createNew": "نموذج جديد",
+    "covers": "{count, plural, =0 {لا توجد أعمال} =1 {عمل واحد} =2 {عملان} few {# أعمال} many {# عملًا} other {# عمل}}",
+    "deleteConfirm": "هل تريد حذف هذا النموذج وجميع بياناته؟",
+    "deleted": "تم حذف النموذج",
+    "deleteFailed": "فشل الحذف"
+  },
+  "model": {
+    "trainingPipeline": "مراحل التدريب",
+    "workerOutput": "مخرجات المعالج",
+    "trainingSongs": "أغاني التدريب",
+    "bestEpoch": "أفضل حقبة",
+    "checkpointsSaved": "تم حفظ {count} نقطة تحقق",
+    "epochsList": "(الحقبات {epochs})",
+    "failedTitle": "فشل التدريب",
+    "retryHint": "يعيد استخدام الأغاني المنزّلة سابقًا على الخادم؛ ستبدأ من مرحلة عزل الأصوات.",
+    "retried": "جارٍ إعادة المحاولة",
+    "retryFailed": "فشلت إعادة المحاولة",
+    "alreadyRunning": "قيد التشغيل بالفعل"
+  },
+  "train": {
+    "title": "تدريب نموذج جديد",
+    "subtitle": "أدخل اسمًا ومعرّفًا وقائمة من روابط الأغاني للتعلّم منها.",
+    "displayName": "الاسم المعروض",
+    "displayNamePlaceholder": "مثلًا: ماجد المهندس",
+    "slug": "المعرّف",
+    "slugHint": "معرّف مناسب للروابط. يُنشأ تلقائيًا من الاسم المعروض.",
+    "slugPlaceholder": "majed",
+    "avatar": "الصورة الرمزية (اختياري)",
+    "songUrls": "روابط الأغاني",
+    "songUrlsHint": "رابط في كل سطر. روابط مباشرة (mp3/wav) أو من YouTube/SoundCloud.",
+    "submit": "بدء التدريب",
+    "submitting": "جارٍ البدء…",
+    "submitted": "تم وضع التدريب في قائمة الانتظار",
+    "submitFailed": "تعذّر بدء التدريب"
+  },
+  "cover": {
+    "title": "إنشاء أداء صوتي",
+    "subtitle": "اختر نموذجًا مدرّبًا وألصق رابط الأغنية التي تريده يؤديها.",
+    "model": "النموذج الصوتي",
+    "modelPlaceholder": "اختر نموذجًا",
+    "audioSource": "مصدر الصوت",
+    "audioUrl": "رابط الصوت",
+    "audioUpload": "رفع ملف",
+    "pitch": "تعديل النغمة (نصف نغمة)",
+    "pitchHint": "قيمة سالبة للأصوات الأخفض، موجبة للأعلى. الصفر يُبقي على المفتاح الأصلي.",
+    "epoch": "حقبة نقطة التحقق",
+    "epochAuto": "تلقائي (الأفضل)",
+    "submit": "إنشاء",
+    "submitting": "جارٍ الإرسال…",
+    "submitted": "تم وضع الأداء في قائمة الانتظار",
+    "submitFailed": "تعذّر بدء الأداء"
+  },
+  "covers": {
+    "title": "سجل الأداءات",
+    "empty": "لا توجد أعمال بعد.",
+    "input": "المُدخل",
+    "output": "المُخرج",
+    "openOutput": "فتح المُخرج"
+  }
+}

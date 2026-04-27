@@ -1,0 +1,133 @@
+{
+  "app": {
+    "name": "voice.ihub2",
+    "tagline": "Singer voice cloning"
+  },
+  "nav": {
+    "cover": "Cover",
+    "train": "Train",
+    "models": "Models",
+    "history": "History",
+    "signOut": "Sign out",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "retry": "Retry",
+    "retrying": "Retrying…",
+    "back": "Back",
+    "yes": "Yes",
+    "no": "No",
+    "created": "Created",
+    "completed": "Completed",
+    "started": "Started",
+    "search": "Search",
+    "none": "—",
+    "actions": "Actions",
+    "open": "Open",
+    "download": "Download",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "status": {
+    "queued": "Queued",
+    "training": "Training",
+    "running": "Running",
+    "ready": "Ready",
+    "done": "Done",
+    "failed": "Failed",
+    "pending": "Pending",
+    "downloaded": "Downloaded",
+    "isolated": "Isolated"
+  },
+  "stages": {
+    "downloading": "Download songs",
+    "isolating": "Isolate vocals",
+    "preprocessing": "Preprocess dataset",
+    "extracting": "Extract pitch + features",
+    "training": "Train model",
+    "indexing": "Build index",
+    "queued": "Queued",
+    "ready": "Ready",
+    "failed": "Failed"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Enter your credentials to continue",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "invalid": "Invalid credentials"
+  },
+  "models": {
+    "title": "Models",
+    "empty": "No models yet. Start by training one.",
+    "createNew": "New model",
+    "covers": "{count, plural, =0 {No covers} =1 {1 cover} other {# covers}}",
+    "deleteConfirm": "Delete this model and all its data?",
+    "deleted": "Model deleted",
+    "deleteFailed": "Delete failed"
+  },
+  "model": {
+    "trainingPipeline": "Training pipeline",
+    "workerOutput": "Worker output",
+    "trainingSongs": "Training songs",
+    "bestEpoch": "Best epoch",
+    "checkpointsSaved": "{count} checkpoints saved",
+    "epochsList": "(epochs {epochs})",
+    "failedTitle": "Training failed",
+    "retryHint": "Reuses songs already downloaded on the worker; only re-runs isolation onward.",
+    "retried": "Retrying",
+    "retryFailed": "Retry failed",
+    "alreadyRunning": "Already running"
+  },
+  "train": {
+    "title": "Train a new model",
+    "subtitle": "Provide a name, slug, and a list of song URLs to learn from.",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "e.g. Majed Almohandes",
+    "slug": "Slug",
+    "slugHint": "URL-safe identifier. Auto-generated from the display name.",
+    "slugPlaceholder": "majed",
+    "avatar": "Avatar (optional)",
+    "songUrls": "Song URLs",
+    "songUrlsHint": "One per line. Direct audio links (mp3/wav) or YouTube/SoundCloud URLs.",
+    "submit": "Start training",
+    "submitting": "Starting…",
+    "submitted": "Training queued",
+    "submitFailed": "Couldn't start training"
+  },
+  "cover": {
+    "title": "Generate a cover",
+    "subtitle": "Pick a trained voice and paste the song you want it to sing.",
+    "model": "Voice model",
+    "modelPlaceholder": "Choose a model",
+    "audioSource": "Audio source",
+    "audioUrl": "Audio URL",
+    "audioUpload": "Upload file",
+    "pitch": "Pitch shift (semitones)",
+    "pitchHint": "Negative for lower voices, positive for higher. 0 keeps the original key.",
+    "epoch": "Checkpoint epoch",
+    "epochAuto": "Auto (best)",
+    "submit": "Generate",
+    "submitting": "Submitting…",
+    "submitted": "Cover queued",
+    "submitFailed": "Couldn't start cover"
+  },
+  "covers": {
+    "title": "Cover history",
+    "empty": "No covers yet.",
+    "input": "Input",
+    "output": "Output",
+    "openOutput": "Open output"
+  }
+}

@@ -30,6 +30,29 @@ export function fmtRelative(d: Date | string | null | undefined): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+/** Format a duration in seconds as h:mm:ss / m:ss / Ns. */
+export function fmtDuration(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return "—";
+  const s = Math.floor(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  if (m > 0) return `${m}:${String(sec).padStart(2, "0")}`;
+  return `${sec}s`;
+}
+
+/** Estimate remaining seconds from progress (0-100) and elapsed time. */
+export function estimateEta(
+  progress: number,
+  elapsedSec: number
+): number | null {
+  if (progress <= 0 || progress >= 100 || elapsedSec <= 0) return null;
+  const rate = progress / elapsedSec; // %/sec
+  const remainingPct = 100 - progress;
+  return remainingPct / rate;
+}
+
 export function statusColor(status: string): string {
   switch (status) {
     case "ready":

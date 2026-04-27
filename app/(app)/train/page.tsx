@@ -1,11 +1,21 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import {
+  GraduationCap,
+  ImagePlus,
+  Loader2,
+  ListMusic,
+  Tag,
+  User,
+} from "lucide-react";
 import { slugify } from "@/lib/utils";
 
 export default function TrainPage() {
   const router = useRouter();
+  const t = useTranslations("train");
   const [displayName, setDisplayName] = useState("");
   const [slug, setSlug] = useState("");
   const [songUrls, setSongUrls] = useState("");
@@ -18,7 +28,7 @@ export default function TrainPage() {
       .split(/\r?\n/)
       .map((s) => s.trim())
       .filter(Boolean);
-    if (urls.length < 1) return toast.error("Add at least one song URL");
+    if (urls.length < 1) return toast.error(t("submitFailed"));
 
     const fd = new FormData();
     fd.set("displayName", displayName);
@@ -30,90 +40,142 @@ export default function TrainPage() {
       const res = await fetch("/api/models", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error ?? "Failed to start training");
+        toast.error(data.error ?? t("submitFailed"));
         return;
       }
-      toast.success("Training started");
+      toast.success(t("submitted"));
       router.push(`/models/${data.id}`);
     });
   }
 
+  const songCount = songUrls
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="mb-1 text-2xl font-semibold">Train a singer</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Paste 8–20 song URLs (YouTube or direct MP3 links). We&apos;ll isolate vocals and
-        train an RVC model. Takes ~30–60 minutes per training run.
-      </p>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
+      </div>
 
-      <form onSubmit={submit} className="space-y-5 rounded-xl border bg-card p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">Display name</span>
-            <input
-              required
-              value={displayName}
-              onChange={(e) => {
-                setDisplayName(e.target.value);
-                if (!slug) setSlug(slugify(e.target.value));
-              }}
-              placeholder="Rashid Al Majidi"
-              className="w-full rounded-md border bg-background px-3 py-2"
-            />
-          </label>
+      <form onSubmit={submit} className="surface space-y-5 p-5 sm:p-6">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field
+            id="displayName"
+            label={t("displayName")}
+            icon={User}
+            input={
+              <input
+                id="displayName"
+                required
+                value={displayName}
+                onChange={(e) => {
+                  setDisplayName(e.target.value);
+                  if (!slug) setSlug(slugify(e.target.value));
+                }}
+                placeholder={t("displayNamePlaceholder")}
+                className="input ps-9"
+              />
+            }
+          />
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">Slug</span>
-            <input
-              required
-              value={slug}
-              onChange={(e) => setSlug(slugify(e.target.value))}
-              placeholder="rashid"
-              className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Lowercase, used in URLs and worker filenames.
-            </p>
-          </label>
+          <Field
+            id="slug"
+            label={t("slug")}
+            hint={t("slugHint")}
+            icon={Tag}
+            input={
+              <input
+                id="slug"
+                required
+                value={slug}
+                onChange={(e) => setSlug(slugify(e.target.value))}
+                placeholder={t("slugPlaceholder")}
+                dir="ltr"
+                className="input ps-9 font-mono text-sm"
+              />
+            }
+          />
         </div>
 
-        <label className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">
-            Avatar (optional)
-          </span>
+        <div className="space-y-1.5">
+          <label htmlFor="avatar" className="label inline-flex items-center gap-1.5">
+            <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
+            {t("avatar")}
+          </label>
           <input
+            id="avatar"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             onChange={(e) => setAvatar(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-secondary-foreground"
+            className="block w-full cursor-pointer rounded-md border bg-background text-sm
+                       file:me-3 file:cursor-pointer file:rounded-md file:border-0
+                       file:bg-secondary file:px-4 file:py-2 file:text-secondary-foreground
+                       hover:file:bg-secondary/80"
           />
-        </label>
+        </div>
 
-        <label className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">
-            Song URLs (one per line)
-          </span>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label htmlFor="songUrls" className="label inline-flex items-center gap-1.5">
+              <ListMusic className="h-3.5 w-3.5 text-muted-foreground" />
+              {t("songUrls")}
+            </label>
+            <span className="hint tabular-nums">{songCount}</span>
+          </div>
           <textarea
+            id="songUrls"
             required
             value={songUrls}
             onChange={(e) => setSongUrls(e.target.value)}
-            rows={10}
+            rows={8}
+            dir="ltr"
             placeholder={"https://youtube.com/watch?v=...\nhttps://example.com/song.mp3"}
-            className="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+            className="input min-h-[10rem] resize-y py-2 font-mono text-xs"
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            8–20 songs recommended. Solo vocals, minimal autotune, no duets.
-          </p>
-        </label>
+          <p className="hint">{t("songUrlsHint")}</p>
+        </div>
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full rounded-md bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50"
-        >
-          {pending ? "Submitting…" : "Start training"}
+        <button type="submit" disabled={pending} className="btn btn-primary w-full">
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <GraduationCap className="h-4 w-4" />
+          )}
+          {pending ? t("submitting") : t("submit")}
         </button>
       </form>
+    </div>
+  );
+}
+
+function Field({
+  id,
+  label,
+  hint,
+  icon: Icon,
+  input,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  icon?: typeof User;
+  input: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="label">
+        {label}
+      </label>
+      <div className="relative">
+        {Icon && (
+          <Icon className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        )}
+        {input}
+      </div>
+      {hint && <p className="hint">{hint}</p>}
     </div>
   );
 }

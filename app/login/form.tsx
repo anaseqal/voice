@@ -1,11 +1,17 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { Loader2, LogIn, Lock, User } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { LocaleToggle } from "@/components/locale-toggle";
 
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const t = useTranslations("login");
+  const tApp = useTranslations("app");
   const [pending, startTransition] = useTransition();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -20,7 +26,7 @@ export function LoginForm() {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        toast.error(j.error ?? "Login failed");
+        toast.error(j.error ?? t("invalid"));
         return;
       }
       router.replace(params.get("next") ?? "/cover");
@@ -28,44 +34,72 @@ export function LoginForm() {
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="w-full max-w-sm space-y-4 rounded-xl border bg-card p-6"
-    >
-      <h1 className="text-2xl font-semibold">voice.ihub2</h1>
-      <p className="text-sm text-muted-foreground">Sign in to continue</p>
+    <div className="w-full max-w-sm space-y-6">
+      <div className="flex items-center justify-end gap-2">
+        <LocaleToggle />
+        <ThemeToggle />
+      </div>
 
-      <label className="block text-sm">
-        <span className="mb-1 block text-muted-foreground">Username</span>
-        <input
-          type="text"
-          autoComplete="username"
-          className="w-full rounded-md border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
-      </label>
+      <form onSubmit={submit} className="surface space-y-5 p-6">
+        <div className="space-y-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {tApp("name")}
+          </h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+        </div>
 
-      <label className="block text-sm">
-        <span className="mb-1 block text-muted-foreground">Password</span>
-        <input
-          type="password"
-          autoComplete="current-password"
-          className="w-full rounded-md border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </label>
+        <div className="space-y-1.5">
+          <label htmlFor="username" className="label">
+            {t("username")}
+          </label>
+          <div className="relative">
+            <User className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="username"
+              type="text"
+              autoComplete="username"
+              className="input ps-9"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              dir="ltr"
+            />
+          </div>
+        </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50"
-      >
-        {pending ? "Signing in…" : "Sign in"}
-      </button>
-    </form>
+        <div className="space-y-1.5">
+          <label htmlFor="password" className="label">
+            {t("password")}
+          </label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              className="input ps-9"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              dir="ltr"
+            />
+          </div>
+        </div>
+
+        <button type="submit" disabled={pending} className="btn btn-primary w-full">
+          {pending ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("submitting")}
+            </>
+          ) : (
+            <>
+              <LogIn className="h-4 w-4" />
+              {t("submit")}
+            </>
+          )}
+        </button>
+      </form>
+    </div>
   );
 }
