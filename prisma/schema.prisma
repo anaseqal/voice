@@ -64,5 +64,5 @@ model Cover {
   startedAt    DateTime?
   completedAt  DateTime?
 
-  model    Model    @relation(fields: [modelId], references: [id])
+  model    Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
 }

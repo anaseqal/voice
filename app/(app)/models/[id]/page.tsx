@@ -70,7 +70,8 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
       toast.success(tModels("deleted"));
       router.push("/models");
     } else {
-      toast.error(tModels("deleteFailed"));
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.detail || body.error || tModels("deleteFailed"));
     }
   }
 
