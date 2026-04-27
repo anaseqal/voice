@@ -310,6 +310,34 @@ async def isolate(input_path: Path, output_dir: Path, both_stems: bool = False) 
     return final
 
 
+def _auto_total_epoch(num_songs: int) -> int:
+    """Pick a reasonable epoch count from dataset size.
+
+    More songs = more diverse data per pass, so the model converges in fewer
+    epochs. Tiny datasets need to keep cycling to learn anything; large ones
+    overfit if you grind for 500 epochs. Tuned against RVC community defaults."""
+    if num_songs <= 3:
+        return 500
+    if num_songs <= 8:
+        return 350
+    if num_songs <= 15:
+        return 250
+    if num_songs <= 25:
+        return 200
+    return 150
+
+
+def _resolve_total_epoch(settings: dict, num_songs: int) -> int:
+    """Explicit settings override > env override > auto from song count."""
+    override = settings.get("total_epoch")
+    if override is not None:
+        return int(override)
+    cfg = config.TRAIN_TOTAL_EPOCHS
+    if isinstance(cfg, str) and cfg.lower() == "auto":
+        return _auto_total_epoch(num_songs)
+    return int(cfg)
+
+
 async def _trim_silence(path: Path) -> None:
     """In-place: rewrite a vocal WAV with long silent gaps removed.
 
@@ -400,9 +428,10 @@ async def run_training(job: Job) -> None:
 
     sample_rate = int(settings.get("sample_rate", config.TRAIN_SAMPLE_RATE))
     vocoder = settings.get("vocoder", config.TRAIN_VOCODER)
-    total_epoch = int(settings.get("total_epoch", config.TRAIN_TOTAL_EPOCHS))
     save_every = int(settings.get("save_every", config.TRAIN_SAVE_EVERY))
     batch_size = int(settings.get("batch_size", config.TRAIN_BATCH_SIZE))
+    # total_epoch is resolved after the download loop so it can scale with
+    # the number of songs that actually downloaded successfully.
 
     dataset_dir = config.DATASET_ROOT / slug
     raw_dir = dataset_dir / "raw"
@@ -430,6 +459,12 @@ async def run_training(job: Job) -> None:
                 log.warning("download failed for %s: %s", url, exc)
         if not downloaded:
             raise RuntimeError("no songs were downloaded successfully")
+
+        total_epoch = _resolve_total_epoch(settings, len(downloaded))
+        log.info(
+            "training plan: %d songs → %d epochs (override=%s)",
+            len(downloaded), total_epoch, settings.get("total_epoch"),
+        )
 
         # 2. Isolate vocals (then trim silence so we don't train on outros/gaps)
         await _set(job, stage="isolating", progress=15,
