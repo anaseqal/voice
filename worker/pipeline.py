@@ -300,8 +300,7 @@ async def _separate_once(
         else:
             final.append(p)
 
-    # Classify stems. With output_single_stem="Vocals", names may not include
-    # "(Vocals)" — fall back to "any file is vocals" in single-stem mode.
+    # Classify stems by filename substring (case-insensitive).
     result: dict[str, Path] = {}
     for p in final:
         n = p.name.lower()
@@ -309,9 +308,27 @@ async def _separate_once(
             result["vocals"] = p
         elif "instrumental" in n and "instrumental" not in result:
             result["instrumental"] = p
+
+    # Fallbacks for naming variations between audio-separator versions.
     if not both_stems and "vocals" not in result and final:
-        # Single-stem Vocals run — whatever survived is what we want
+        # Single-stem mode: only one file expected, treat it as vocals.
         result["vocals"] = final[0]
+    elif both_stems and final:
+        # Two-stem mode: audio-separator returns files in a deterministic
+        # order (Vocals first, Instrumental second). If our substring classifier
+        # missed one, fall back to that ordering rather than failing the job.
+        if "vocals" not in result:
+            for p in final:
+                if p not in result.values():
+                    result["vocals"] = p
+                    log.warning("vocals classified by file order: %s", p.name)
+                    break
+        if "instrumental" not in result:
+            for p in final:
+                if p not in result.values():
+                    result["instrumental"] = p
+                    log.warning("instrumental classified by file order: %s", p.name)
+                    break
 
     return result
 

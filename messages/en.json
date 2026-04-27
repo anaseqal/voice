@@ -55,6 +55,8 @@
     "extracting": "Extract pitch + features",
     "training": "Train model",
     "indexing": "Build index",
+    "converting": "Convert voice",
+    "mixing": "Mix final track",
     "queued": "Queued",
     "ready": "Ready",
     "failed": "Failed"
@@ -128,6 +130,9 @@
     "empty": "No covers yet.",
     "input": "Input",
     "output": "Output",
-    "openOutput": "Open output"
+    "openOutput": "Open output",
+    "pipeline": "Cover pipeline",
+    "workerOutput": "Worker output",
+    "failedTitle": "Cover failed"
   }
 }

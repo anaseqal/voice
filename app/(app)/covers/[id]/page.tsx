@@ -6,6 +6,9 @@ import { AlertCircle, Download } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
 import { Avatar } from "@/components/avatar";
+import { StageList } from "@/components/stage-list";
+import { LogTail } from "@/components/log-tail";
+import { TimeStats } from "@/components/time-stats";
 import { fmtDate } from "@/lib/utils";
 
 type Cover = {
@@ -18,12 +21,21 @@ type Cover = {
   progress: number;
   message: string | null;
   error: string | null;
+  logTail: string | null;
   pitch: number;
   epoch: number | null;
   createdAt: string;
+  startedAt: string | null;
   completedAt: string | null;
   model: { slug: string; displayName: string; avatarPath: string | null };
 };
+
+const COVER_STAGES = [
+  "downloading",
+  "isolating",
+  "converting",
+  "mixing",
+] as const;
 
 export default function CoverDetail({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -46,18 +58,21 @@ export default function CoverDetail({ params }: { params: { id: string } }) {
   if (!cover) return <p className="text-muted-foreground">{tCommon("loading")}</p>;
   const outputUrl =
     cover.status === "done" ? `/files/outputs/${cover.id}.wav` : null;
+  const isRunning = cover.status !== "done" && cover.status !== "failed";
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
+      {/* Header */}
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-        <Avatar src={cover.model.avatarPath} name={cover.model.displayName} size={56} />
+        <Avatar
+          src={cover.model.avatarPath}
+          name={cover.model.displayName}
+          size={56}
+        />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold">{cover.inputName}</h1>
           <p className="truncate text-sm text-muted-foreground">
-            <Link
-              href="/models"
-              className="underline-offset-2 hover:underline"
-            >
+            <Link href="/models" className="underline-offset-2 hover:underline">
               {cover.model.displayName}
             </Link>
             {cover.pitch !== 0 && (
@@ -69,39 +84,75 @@ export default function CoverDetail({ params }: { params: { id: string } }) {
         <StatusBadge status={cover.status} />
       </div>
 
-      {cover.status !== "done" && cover.status !== "failed" && (
-        <div className="surface space-y-3 p-4 sm:p-5">
-          <div className="flex items-center justify-between text-sm">
-            <span>
-              {cover.stage ? tryT(tStatus, cover.stage) : tStatus("queued")}
-            </span>
-            <span className="tabular-nums text-muted-foreground">
+      {/* In progress */}
+      {isRunning && (
+        <div className="surface space-y-4 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-medium">{t("pipeline")}</h2>
+            <span className="tabular-nums text-sm font-medium text-muted-foreground">
               {cover.progress}%
             </span>
           </div>
           <ProgressBar value={cover.progress} />
-          {cover.message && (
-            <p className="hint">{cover.message}</p>
-          )}
+          <TimeStats
+            startedAt={cover.startedAt}
+            completedAt={cover.completedAt}
+            progress={cover.progress}
+            isRunning
+          />
+          <StageList
+            stageKeys={COVER_STAGES}
+            status={cover.status}
+            stage={cover.stage}
+            message={cover.message}
+            failureKeys={["failed"]}
+            successKeys={["done"]}
+          />
+          <LogTail text={cover.logTail} title={t("workerOutput")} />
         </div>
       )}
 
+      {/* Failed */}
       {cover.status === "failed" && (
-        <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium text-destructive">
-              {tStatus("failed")}
-            </p>
-            <p className="mt-1 text-destructive/80">
-              {cover.error ?? tCommon("none")}
-            </p>
+        <div className="space-y-4 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-destructive">{t("failedTitle")}</p>
+              <p className="mt-1 text-destructive/80">
+                {cover.error ?? tCommon("none")}
+              </p>
+            </div>
           </div>
+          <StageList
+            stageKeys={COVER_STAGES}
+            status={cover.status}
+            stage={cover.stage}
+            message={null}
+            failureKeys={["failed"]}
+            successKeys={["done"]}
+          />
+          <LogTail text={cover.logTail} title={t("workerOutput")} />
         </div>
       )}
 
+      {/* Done — output player */}
       {outputUrl && (
         <div className="surface space-y-3 p-4 sm:p-5">
+          <StageList
+            stageKeys={COVER_STAGES}
+            status={cover.status}
+            stage={cover.stage}
+            message={null}
+            failureKeys={["failed"]}
+            successKeys={["done"]}
+          />
+          <TimeStats
+            startedAt={cover.startedAt}
+            completedAt={cover.completedAt}
+            progress={100}
+            isRunning={false}
+          />
           <audio controls src={outputUrl} className="w-full" />
           <a
             href={outputUrl}
@@ -123,14 +174,6 @@ export default function CoverDetail({ params }: { params: { id: string } }) {
       </div>
     </div>
   );
-}
-
-function tryT(t: ReturnType<typeof useTranslations>, k: string) {
-  try {
-    return t(k as never);
-  } catch {
-    return k;
-  }
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

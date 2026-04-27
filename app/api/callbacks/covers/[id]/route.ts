@@ -24,6 +24,7 @@ export async function POST(
   const message = body.message as string | undefined;
   const error = body.error as string | null | undefined;
   const result = body.result as Record<string, unknown> | undefined;
+  const logTail = typeof body.log_tail === "string" ? body.log_tail : undefined;
 
   const data: Record<string, unknown> = {};
   if (status) data.status = status;
@@ -31,6 +32,7 @@ export async function POST(
   if (progress !== undefined) data.progress = progress;
   if (message !== undefined) data.message = message;
   if (error !== undefined && error !== null) data.error = String(error);
+  if (logTail !== undefined) data.logTail = logTail;
   if (status === "done") data.completedAt = new Date();
   if (status === "running" && stage === "downloading") data.startedAt = new Date();
 

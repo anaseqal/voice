@@ -55,6 +55,7 @@ model Cover {
   progress      Int      @default(0)
   message       String?
   error         String?
+  logTail       String?  // last ~30 lines of worker subprocess output
   workerJobId   String?
   pitch         Int      @default(0)
   epoch         Int?     // checkpoint used (null = best)

@@ -1,26 +1,16 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import {
-  AlertCircle,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Circle,
-  Clock,
-  Loader2,
-  RefreshCw,
-  Terminal,
-  Trash2,
-  Hourglass,
-  X,
-} from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
 import { Avatar } from "@/components/avatar";
-import { cn, estimateEta, fmtDate, fmtDuration } from "@/lib/utils";
+import { StageList } from "@/components/stage-list";
+import { LogTail } from "@/components/log-tail";
+import { TimeStats } from "@/components/time-stats";
+import { fmtDate } from "@/lib/utils";
 
 type Song = { id: string; url: string; status: string };
 type Model = {
@@ -43,7 +33,7 @@ type Model = {
   _count: { covers: number };
 };
 
-const STAGE_KEYS = [
+const TRAIN_STAGES = [
   "downloading",
   "isolating",
   "preprocessing",
@@ -57,7 +47,6 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
   const router = useRouter();
   const t = useTranslations("model");
   const tCommon = useTranslations("common");
-  const tStages = useTranslations("stages");
   const tStatus = useTranslations("status");
   const tModels = useTranslations("models");
   const [model, setModel] = useState<Model | null>(null);
@@ -89,9 +78,8 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
     setRetrying(true);
     try {
       const res = await fetch(`/api/models/${id}/retry`, { method: "POST" });
-      if (res.ok) {
-        toast.success(t("retried"));
-      } else {
+      if (res.ok) toast.success(t("retried"));
+      else {
         const body = await res.json().catch(() => ({}));
         toast.error(body.error ?? t("retryFailed"));
       }
@@ -105,10 +93,10 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
   const checkpoints = model.checkpoints
     ? (JSON.parse(model.checkpoints) as { epoch: number; path: string }[])
     : [];
+  const isRunning = model.status !== "ready" && model.status !== "failed";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Header */}
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <Avatar src={model.avatarPath} name={model.displayName} size={64} />
         <div className="min-w-0 flex-1">
@@ -130,8 +118,7 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
         </button>
       </div>
 
-      {/* In progress */}
-      {model.status !== "ready" && model.status !== "failed" && (
+      {isRunning && (
         <div className="surface space-y-4 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-medium">{t("trainingPipeline")}</h2>
@@ -147,17 +134,17 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
             isRunning
           />
           <StageList
-            tStages={tStages}
-            tStatus={tStatus}
+            stageKeys={TRAIN_STAGES}
             status={model.status}
             stage={model.stage}
             message={model.message}
+            failureKeys={["failed"]}
+            successKeys={["ready"]}
           />
           <LogTail text={model.logTail} title={t("workerOutput")} />
         </div>
       )}
 
-      {/* Failed */}
       {model.status === "failed" && (
         <div className="space-y-4 rounded-xl border border-destructive/40 bg-destructive/5 p-4 sm:p-5">
           <div className="flex items-start gap-3">
@@ -170,18 +157,15 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
             </div>
           </div>
           <StageList
-            tStages={tStages}
-            tStatus={tStatus}
+            stageKeys={TRAIN_STAGES}
             status={model.status}
             stage={model.stage}
             message={null}
+            failureKeys={["failed"]}
+            successKeys={["ready"]}
           />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              onClick={retry}
-              disabled={retrying}
-              className="btn btn-primary"
-            >
+            <button onClick={retry} disabled={retrying} className="btn btn-primary">
               {retrying ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -195,15 +179,15 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* Ready */}
       {model.status === "ready" && (
         <div className="surface space-y-4 p-4 sm:p-5">
           <StageList
-            tStages={tStages}
-            tStatus={tStatus}
+            stageKeys={TRAIN_STAGES}
             status={model.status}
             stage={model.stage}
             message={null}
+            failureKeys={["failed"]}
+            successKeys={["ready"]}
           />
           <TimeStats
             startedAt={model.startedAt}
@@ -228,7 +212,6 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* Training songs */}
       <div className="surface p-4 sm:p-5">
         <h2 className="mb-3 text-sm font-medium">
           {t("trainingSongs")} ({model.songs.length})
@@ -254,7 +237,6 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
         </ul>
       </div>
 
-      {/* Meta */}
       <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
         <Stat label={tCommon("created")} value={fmtDate(model.createdAt)} />
         <Stat
@@ -281,7 +263,9 @@ function SongStatusDot({ status }: { status: string }) {
       : status === "failed"
         ? "bg-red-500"
         : "bg-muted-foreground/40";
-  return <span className={cn("h-2 w-2 shrink-0 rounded-full", cls)} />;
+  return (
+    <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} />
+  );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -289,165 +273,6 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-muted-foreground">{label}</div>
       <div className="font-medium text-foreground">{value}</div>
-    </div>
-  );
-}
-
-// Window over which we measure recent rate for the ETA. Long enough to smooth
-// out polling jitter, short enough to track transitions between stages.
-const ETA_WINDOW_MS = 90_000;
-
-function TimeStats({
-  startedAt,
-  completedAt,
-  progress,
-  isRunning,
-}: {
-  startedAt: string | null;
-  completedAt: string | null;
-  progress: number;
-  isRunning: boolean;
-}) {
-  // Live ticking timer for the in-progress case
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!isRunning) return;
-    const handle = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(handle);
-  }, [isRunning]);
-
-  // Sliding-window samples for ETA. We push on every progress change and drop
-  // anything older than ETA_WINDOW_MS. Fewer than 2 samples → no ETA yet.
-  const samplesRef = useRef<{ t: number; p: number }[]>([]);
-  useEffect(() => {
-    if (!isRunning || progress <= 0 || progress >= 100) {
-      samplesRef.current = [];
-      return;
-    }
-    const t = Date.now();
-    const buf = samplesRef.current;
-    const last = buf[buf.length - 1];
-    if (!last || last.p !== progress) {
-      buf.push({ t, p: progress });
-    }
-    samplesRef.current = buf.filter((s) => t - s.t <= ETA_WINDOW_MS);
-  }, [progress, isRunning]);
-
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  const end = completedAt ? new Date(completedAt).getTime() : now;
-  const elapsedSec = Math.max(0, (end - start) / 1000);
-  const eta = isRunning ? estimateEta(samplesRef.current, progress) : null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground tabular-nums">
-      <span className="inline-flex items-center gap-1.5">
-        <Clock className="h-3.5 w-3.5" />
-        {fmtDuration(elapsedSec)}
-      </span>
-      {eta !== null && (
-        <span className="inline-flex items-center gap-1.5">
-          <Hourglass className="h-3.5 w-3.5" />
-          ~{fmtDuration(eta)}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function StageList({
-  tStages,
-  tStatus,
-  status,
-  stage,
-  message,
-}: {
-  tStages: ReturnType<typeof useTranslations>;
-  tStatus: ReturnType<typeof useTranslations>;
-  status: string;
-  stage: string | null;
-  message: string | null;
-}) {
-  const isReady = status === "ready";
-  const isFailed = status === "failed";
-  const currentIdx = STAGE_KEYS.findIndex((k) => k === stage);
-
-  return (
-    <ol className="space-y-1.5 text-sm" aria-label={tStatus("running")}>
-      {STAGE_KEYS.map((k, i) => {
-        const done = isReady || (currentIdx >= 0 && i < currentIdx);
-        const current =
-          !isReady && !isFailed && currentIdx >= 0 && i === currentIdx;
-        const failed = isFailed && i === currentIdx;
-        const pending = !done && !current && !failed;
-        return (
-          <li key={k} className="flex items-center gap-2.5">
-            {done && <Check className="h-4 w-4 shrink-0 text-green-500" />}
-            {current && (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-            )}
-            {failed && <X className="h-4 w-4 shrink-0 text-destructive" />}
-            {pending && (
-              <Circle className="h-4 w-4 shrink-0 text-muted-foreground/30" />
-            )}
-            <span
-              className={cn(
-                "truncate",
-                done && "text-foreground",
-                current && "font-medium text-foreground",
-                failed && "text-destructive",
-                pending && "text-muted-foreground"
-              )}
-            >
-              {tStages(k as never)}
-            </span>
-            {current && message && (
-              <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-                — {message}
-              </span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function LogTail({ text, title }: { text: string | null; title: string }) {
-  const [open, setOpen] = useState(true);
-  const preRef = useRef<HTMLPreElement>(null);
-
-  useEffect(() => {
-    if (open && preRef.current) {
-      preRef.current.scrollTop = preRef.current.scrollHeight;
-    }
-  }, [text, open]);
-
-  if (!text) return null;
-  return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-      >
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
-        )}
-        <Terminal className="h-3.5 w-3.5" />
-        {title}
-      </button>
-      {open && (
-        <pre
-          ref={preRef}
-          dir="ltr"
-          className="max-h-64 overflow-auto rounded-md border bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"
-        >
-          {text}
-        </pre>
-      )}
     </div>
   );
 }
