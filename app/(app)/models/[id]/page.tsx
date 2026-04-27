@@ -2,9 +2,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Check, Circle, Loader2, X } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
-import { fmtDate } from "@/lib/utils";
+import { cn, fmtDate } from "@/lib/utils";
+
+const STAGES: { key: string; label: string }[] = [
+  { key: "downloading", label: "Download songs" },
+  { key: "isolating", label: "Isolate vocals" },
+  { key: "preprocessing", label: "Preprocess dataset" },
+  { key: "extracting", label: "Extract pitch + features" },
+  { key: "training", label: "Train model" },
+  { key: "indexing", label: "Build index" },
+];
 
 type Song = { id: string; url: string; status: string };
 type Model = {
@@ -101,24 +111,31 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
       </div>
 
       {model.status !== "ready" && model.status !== "failed" && (
-        <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span>{model.stage ?? "queued"}</span>
+        <div className="space-y-4 rounded-xl border bg-card p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Training pipeline</span>
             <span className="text-muted-foreground">{model.progress}%</span>
           </div>
           <ProgressBar value={model.progress} />
-          {model.message && (
-            <p className="mt-2 text-xs text-muted-foreground">{model.message}</p>
-          )}
+          <StageList
+            status={model.status}
+            stage={model.stage}
+            message={model.message}
+          />
           <LogTail text={model.logTail} />
         </div>
       )}
 
       {model.status === "failed" && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm">
-          <div className="mb-3">
+        <div className="space-y-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm">
+          <div>
             <strong>Failed:</strong> {model.error ?? "unknown error"}
           </div>
+          <StageList
+            status={model.status}
+            stage={model.stage}
+            message={null}
+          />
           <button
             onClick={retry}
             disabled={retrying}
@@ -126,7 +143,7 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
           >
             {retrying ? "Retrying…" : "Retry"}
           </button>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Reuses songs already downloaded on the worker; only re-runs
             isolation onward.
           </p>
@@ -134,8 +151,9 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
       )}
 
       {model.status === "ready" && (
-        <div className="rounded-xl border bg-card p-4 text-sm">
-          <p className="mb-2">
+        <div className="space-y-3 rounded-xl border bg-card p-4 text-sm">
+          <StageList status={model.status} stage={model.stage} message={null} />
+          <p>
             <span className="text-muted-foreground">Best epoch:</span> {model.bestEpoch}
           </p>
           {checkpoints.length > 0 && (
@@ -170,6 +188,59 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function StageList({
+  status,
+  stage,
+  message,
+}: {
+  status: string;
+  stage: string | null;
+  message: string | null;
+}) {
+  const isReady = status === "ready";
+  const isFailed = status === "failed";
+  const currentIdx = STAGES.findIndex((s) => s.key === stage);
+
+  return (
+    <ol className="space-y-1.5 text-sm">
+      {STAGES.map((s, i) => {
+        const done = isReady || (currentIdx >= 0 && i < currentIdx);
+        const current = !isReady && !isFailed && currentIdx >= 0 && i === currentIdx;
+        const failed = isFailed && i === currentIdx;
+        const pending = !done && !current && !failed;
+        return (
+          <li key={s.key} className="flex items-center gap-2">
+            {done && <Check className="h-4 w-4 shrink-0 text-green-500" />}
+            {current && (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+            )}
+            {failed && <X className="h-4 w-4 shrink-0 text-destructive" />}
+            {pending && (
+              <Circle className="h-4 w-4 shrink-0 text-muted-foreground/30" />
+            )}
+            <span
+              className={cn(
+                "truncate",
+                done && "text-foreground",
+                current && "font-medium text-foreground",
+                failed && "text-destructive",
+                pending && "text-muted-foreground"
+              )}
+            >
+              {s.label}
+            </span>
+            {current && message && (
+              <span className="truncate text-xs text-muted-foreground">
+                — {message}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
