@@ -95,6 +95,61 @@ async def _log_flusher(job: Job) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Separator cache (audio-separator in-process API)
+#
+# Keeping Separator instances alive across songs+passes avoids paying ~50s of
+# Python+torch+onnx startup and model load on every isolation. Models stay
+# pinned in VRAM (a few hundred MB each) for the lifetime of the worker.
+# ---------------------------------------------------------------------------
+
+_separator_cache: dict[str, "Separator"] = {}  # type: ignore[name-defined]  # noqa: F821
+_separator_lock = asyncio.Lock()
+_log_handler_attached = False
+
+
+class _JobLogHandler(logging.Handler):
+    """Forward audio_separator log records into the active job's log_tail."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        job = current_job.get()
+        if job is None:
+            return
+        try:
+            job.append_log(self.format(record))
+        except Exception:  # never let logging break the pipeline
+            pass
+
+
+def _attach_log_handler() -> None:
+    global _log_handler_attached
+    if _log_handler_attached:
+        return
+    handler = _JobLogHandler()
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter("%(name)s - %(message)s"))
+    logging.getLogger("audio_separator").addHandler(handler)
+    _log_handler_attached = True
+
+
+async def _get_separator(model_filename: str):  # type: ignore[no-untyped-def]
+    """Lock-protected lazy init. Caller must already hold _separator_lock."""
+    if model_filename in _separator_cache:
+        return _separator_cache[model_filename]
+    from audio_separator.separator import Separator  # heavy import
+
+    _attach_log_handler()
+    sep = Separator(
+        log_level=logging.INFO,
+        model_file_dir="/tmp/audio-separator-models/",
+        output_format="WAV",
+    )
+    log.info("loading separator model %s (first use)", model_filename)
+    await asyncio.to_thread(sep.load_model, model_filename=model_filename)
+    _separator_cache[model_filename] = sep
+    return sep
+
+
+# ---------------------------------------------------------------------------
 # Audio operations
 # ---------------------------------------------------------------------------
 
@@ -169,18 +224,18 @@ async def _separate_once(
     model_filename: str,
     both_stems: bool,
 ) -> dict[str, Path]:
-    """Single audio-separator invocation. Returns paths keyed by stem name."""
+    """Run one separation pass via the cached in-process Separator.
+
+    First call per model loads it (~5-30s). Subsequent calls reuse the loaded
+    model — pure GPU work. Serialized by _separator_lock so concurrent jobs
+    don't trample each other's output_dir/output_single_stem state."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "audio-separator",
-        str(input_path),
-        "--model_filename", model_filename,
-        "--output_dir", str(output_dir),
-        "--output_format", "WAV",
-    ]
-    if not both_stems:
-        cmd += ["--single_stem", "Vocals"]
-    await _run_cmd(cmd)
+
+    async with _separator_lock:
+        sep = await _get_separator(model_filename)
+        sep.output_dir = str(output_dir)
+        sep.output_single_stem = None if both_stems else "Vocals"
+        await asyncio.to_thread(sep.separate, str(input_path))
 
     stem = input_path.stem
     result: dict[str, Path] = {}
