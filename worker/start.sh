@@ -66,9 +66,16 @@ VENV_BIN="$APPLIO_DIR/.venv/bin"
 # wipeable container disk.
 PERSISTENT_BIN="/workspace/.bin"
 
+# onnxruntime-gpu needs cuDNN 9.x at runtime. The nvidia-cudnn-cu12 wheel
+# (in requirements.txt) installs the libs under site-packages/nvidia/cudnn/lib;
+# expose them on LD_LIBRARY_PATH so onnxruntime can dlopen them.
+CUDNN_LIB="$(ls -d "$APPLIO_DIR"/.venv/lib/python*/site-packages/nvidia/cudnn/lib 2>/dev/null | head -1)"
+NV_LIBS="$(ls -d "$APPLIO_DIR"/.venv/lib/python*/site-packages/nvidia/*/lib 2>/dev/null | tr '\n' ':')"
+
 tmux new-session -d -s "$SESSION" \
   "cd '$WORKER_DIR' && \
    PATH='$VENV_BIN:$PERSISTENT_BIN:/usr/local/bin:/usr/bin:/bin' \
+   LD_LIBRARY_PATH='${NV_LIBS}${CUDNN_LIB}:/usr/local/cuda/lib64:\${LD_LIBRARY_PATH:-}' \
    WORKER_BEARER_TOKEN='$WORKER_BEARER_TOKEN' \
    APPLIO_DIR='$APPLIO_DIR' \
    '$VENV_PY' -m uvicorn worker.worker:app \

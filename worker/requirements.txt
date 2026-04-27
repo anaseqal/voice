@@ -6,3 +6,6 @@ python-multipart==0.0.20
 yt-dlp==2025.2.19
 audio-separator[gpu]==0.32.0
 onnxruntime-gpu==1.20.1
+# onnxruntime needs cuDNN 9.x at runtime; install the wheel and load via
+# LD_LIBRARY_PATH in start.sh so the CUDAExecutionProvider works.
+nvidia-cudnn-cu12==9.*
