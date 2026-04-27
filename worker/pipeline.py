@@ -228,22 +228,70 @@ async def _separate_once(
 
     First call per model loads it (~5-30s). Subsequent calls reuse the loaded
     model — pure GPU work. Serialized by _separator_lock so concurrent jobs
-    don't trample each other's output_dir/output_single_stem state."""
+    don't trample each other's output_dir/output_single_stem state.
+
+    Trust the list of paths returned by separate() rather than globbing —
+    audio-separator's internal model snapshots output_dir at load_model time,
+    so mutating sep.output_dir between calls may write to the wrong directory.
+    We move files into output_dir if needed."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     async with _separator_lock:
         sep = await _get_separator(model_filename)
         sep.output_dir = str(output_dir)
         sep.output_single_stem = None if both_stems else "Vocals"
-        await asyncio.to_thread(sep.separate, str(input_path))
+        returned = await asyncio.to_thread(sep.separate, str(input_path))
 
-    stem = input_path.stem
+    log.info("separator returned for %s: %s", input_path.name, returned)
+
+    # Resolve each returned filename to an existing file. If the separator
+    # wrote it somewhere other than output_dir (because of the mutation issue
+    # above), find it and move it.
+    candidate_dirs = [output_dir]
+    sep_dir = getattr(sep, "output_dir", None)
+    if sep_dir and Path(sep_dir) not in candidate_dirs:
+        candidate_dirs.append(Path(sep_dir))
+    candidate_dirs.append(config.APPLIO_DIR)  # fallback: cwd of train subprocess
+
+    resolved: list[Path] = []
+    for fname in returned or []:
+        p = Path(fname)
+        if p.is_absolute() and p.exists():
+            resolved.append(p)
+            continue
+        found = False
+        for base in candidate_dirs:
+            cand = base / Path(fname).name
+            if cand.exists():
+                resolved.append(cand)
+                found = True
+                break
+        if not found:
+            log.warning("separator-returned file not found anywhere: %s", fname)
+
+    # Move any file outside output_dir into it
+    final: list[Path] = []
+    for p in resolved:
+        if p.parent.resolve() != output_dir.resolve():
+            dest = output_dir / p.name
+            shutil.move(str(p), dest)
+            final.append(dest)
+        else:
+            final.append(p)
+
+    # Classify stems. With output_single_stem="Vocals", names may not include
+    # "(Vocals)" — fall back to "any file is vocals" in single-stem mode.
     result: dict[str, Path] = {}
-    for f in output_dir.glob(f"{stem}_*.wav"):
-        if "(Vocals)" in f.name:
-            result["vocals"] = f
-        elif "(Instrumental)" in f.name:
-            result["instrumental"] = f
+    for p in final:
+        n = p.name.lower()
+        if "vocals" in n and "vocals" not in result:
+            result["vocals"] = p
+        elif "instrumental" in n and "instrumental" not in result:
+            result["instrumental"] = p
+    if not both_stems and "vocals" not in result and final:
+        # Single-stem Vocals run — whatever survived is what we want
+        result["vocals"] = final[0]
+
     return result
 
 
