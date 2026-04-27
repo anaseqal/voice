@@ -19,6 +19,50 @@ export async function GET(_: NextRequest, ctx: { params: Promise<{ id: string }>
   return NextResponse.json({ model });
 }
 
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireSessionOrJson();
+  if (auth instanceof Response) return auth;
+
+  const { id } = await ctx.params;
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  }
+
+  const data: { defaultEpoch?: number | null } = {};
+  if ("defaultEpoch" in body) {
+    const v = body.defaultEpoch;
+    if (v === null) data.defaultEpoch = null;
+    else if (typeof v === "number" && Number.isFinite(v) && v > 0)
+      data.defaultEpoch = Math.floor(v);
+    else
+      return NextResponse.json(
+        { error: "defaultEpoch must be a positive number or null" },
+        { status: 400 }
+      );
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "no editable fields" }, { status: 400 });
+  }
+
+  try {
+    const model = await db.model.update({ where: { id }, data });
+    return NextResponse.json({ model });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: "update failed",
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   _: NextRequest,
   ctx: { params: Promise<{ id: string }> }

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   const audioUrl = String(form.get("audioUrl") ?? "").trim();
   const pitch = parseInt(String(form.get("pitch") ?? "0"), 10) || 0;
   const epochRaw = String(form.get("epoch") ?? "");
-  const epoch = epochRaw ? parseInt(epochRaw, 10) : null;
+  const userEpoch = epochRaw ? parseInt(epochRaw, 10) : null;
 
   if (!modelId) {
     return NextResponse.json({ error: "modelId required" }, { status: 400 });
@@ -60,6 +60,12 @@ export async function POST(req: NextRequest) {
       { status: 409 }
     );
   }
+
+  // Resolution order for which checkpoint to convert against:
+  //   1. per-cover form override (Advanced → epoch)
+  //   2. model.defaultEpoch (set from the model detail page)
+  //   3. null → worker picks best (lowest loss) automatically
+  const epoch = userEpoch ?? model.defaultEpoch ?? null;
 
   // Create the cover row first to get an id
   const cover = await db.cover.create({

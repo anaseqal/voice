@@ -22,6 +22,8 @@ export default function TrainPage() {
   const [slug, setSlug] = useState("");
   const [songUrls, setSongUrls] = useState("");
   const [avatar, setAvatar] = useState<File | null>(null);
+  const [epochMode, setEpochMode] = useState<"auto" | "set">("auto");
+  const [epochValue, setEpochValue] = useState<number>(500);
   const [pending, startTransition] = useTransition();
 
   function submit(e: React.FormEvent) {
@@ -32,11 +34,13 @@ export default function TrainPage() {
       .filter(Boolean);
     if (urls.length < 1) return toast.error(t("submitFailed"));
 
-    const fd = new FormData();
+    const fd = new FormData(e.currentTarget as HTMLFormElement);
     fd.set("displayName", displayName);
     fd.set("slug", slug || slugify(displayName));
     fd.set("songUrls", urls.join("\n"));
     if (avatar) fd.set("avatar", avatar);
+    if (epochMode === "set") fd.set("totalEpoch", String(epochValue));
+    else fd.delete("totalEpoch");
 
     startTransition(async () => {
       const res = await fetch("/api/models", { method: "POST", body: fd });
@@ -152,18 +156,39 @@ export default function TrainPage() {
             <p className="hint">{t("advancedHint")}</p>
 
             <div className="space-y-1.5">
-              <label htmlFor="totalEpoch" className="label">
+              <label htmlFor="totalEpochMode" className="label">
                 {t("totalEpoch")}
               </label>
-              <input
-                id="totalEpoch"
-                name="totalEpoch"
-                type="text"
-                inputMode="numeric"
-                placeholder={t("totalEpochAuto")}
-                className="input"
-                dir="ltr"
-              />
+              <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
+                <div className="relative">
+                  <select
+                    id="totalEpochMode"
+                    value={epochMode}
+                    onChange={(e) =>
+                      setEpochMode(e.target.value as "auto" | "set")
+                    }
+                    className="input appearance-none pe-9"
+                  >
+                    <option value="auto">{t("totalEpochAuto")}</option>
+                    <option value="set">{t("totalEpochSet")}</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
+                {epochMode === "set" && (
+                  <input
+                    type="number"
+                    min={50}
+                    max={2000}
+                    step={25}
+                    value={epochValue}
+                    onChange={(e) =>
+                      setEpochValue(parseInt(e.target.value || "0", 10) || 0)
+                    }
+                    className="input"
+                    dir="ltr"
+                  />
+                )}
+              </div>
               <p className="hint">{t("totalEpochHint")}</p>
             </div>
 

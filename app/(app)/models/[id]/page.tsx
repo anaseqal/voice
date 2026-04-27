@@ -10,7 +10,7 @@ import { Avatar } from "@/components/avatar";
 import { StageList } from "@/components/stage-list";
 import { LogTail } from "@/components/log-tail";
 import { TimeStats } from "@/components/time-stats";
-import { fmtDate } from "@/lib/utils";
+import { cn, fmtDate } from "@/lib/utils";
 
 type Song = { id: string; url: string; status: string };
 type Model = {
@@ -25,6 +25,7 @@ type Model = {
   logTail: string | null;
   avatarPath: string | null;
   bestEpoch: number | null;
+  defaultEpoch: number | null;
   checkpoints: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -86,6 +87,24 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
       }
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function setDefaultEpoch(epoch: number | null) {
+    const prev = model?.defaultEpoch ?? null;
+    if (model) setModel({ ...model, defaultEpoch: epoch });
+    const res = await fetch(`/api/models/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ defaultEpoch: epoch }),
+    });
+    if (res.ok) {
+      toast.success(t("checkpointSet"));
+    } else {
+      // revert optimistic update
+      if (model) setModel({ ...model, defaultEpoch: prev });
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.detail ?? body.error ?? t("checkpointFailed"));
     }
   }
 
@@ -181,36 +200,47 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
       )}
 
       {model.status === "ready" && (
-        <div className="surface space-y-4 p-4 sm:p-5">
-          <StageList
-            stageKeys={TRAIN_STAGES}
-            status={model.status}
-            stage={model.stage}
-            message={null}
-            failureKeys={["failed"]}
-            successKeys={["ready"]}
-          />
-          <TimeStats
-            startedAt={model.startedAt}
-            completedAt={model.completedAt}
-            progress={100}
-            isRunning={false}
-          />
-          <div className="grid grid-cols-2 gap-4 border-t pt-4 text-sm sm:grid-cols-3">
-            <Stat
-              label={t("bestEpoch")}
-              value={model.bestEpoch?.toString() ?? tCommon("none")}
+        <>
+          <div className="surface space-y-4 p-4 sm:p-5">
+            <StageList
+              stageKeys={TRAIN_STAGES}
+              status={model.status}
+              stage={model.stage}
+              message={null}
+              failureKeys={["failed"]}
+              successKeys={["ready"]}
             />
-            <Stat
-              label={tStatus("done")}
-              value={
-                checkpoints.length > 0
-                  ? t("checkpointsSaved", { count: checkpoints.length })
-                  : tCommon("none")
-              }
+            <TimeStats
+              startedAt={model.startedAt}
+              completedAt={model.completedAt}
+              progress={100}
+              isRunning={false}
             />
+            <div className="grid grid-cols-2 gap-4 border-t pt-4 text-sm sm:grid-cols-3">
+              <Stat
+                label={t("bestEpoch")}
+                value={model.bestEpoch?.toString() ?? tCommon("none")}
+              />
+              <Stat
+                label={tStatus("done")}
+                value={
+                  checkpoints.length > 0
+                    ? t("checkpointsSaved", { count: checkpoints.length })
+                    : tCommon("none")
+                }
+              />
+            </div>
           </div>
-        </div>
+
+          {checkpoints.length > 0 && (
+            <CheckpointPicker
+              checkpoints={checkpoints}
+              bestEpoch={model.bestEpoch}
+              defaultEpoch={model.defaultEpoch}
+              onPick={setDefaultEpoch}
+            />
+          )}
+        </>
       )}
 
       <div className="surface p-4 sm:p-5">
@@ -246,6 +276,100 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
         />
       </div>
     </div>
+  );
+}
+
+function CheckpointPicker({
+  checkpoints,
+  bestEpoch,
+  defaultEpoch,
+  onPick,
+}: {
+  checkpoints: { epoch: number; path: string }[];
+  bestEpoch: number | null;
+  defaultEpoch: number | null;
+  onPick: (epoch: number | null) => void;
+}) {
+  const t = useTranslations("model");
+  const sorted = [...checkpoints].sort((a, b) => b.epoch - a.epoch);
+  const latestEpoch = sorted[0]?.epoch;
+  // Active = user-picked default, or best (worker-detected) when none picked.
+  const activeEpoch = defaultEpoch ?? bestEpoch ?? null;
+
+  return (
+    <div className="surface p-4 sm:p-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium">{t("checkpoints")}</h2>
+        {defaultEpoch !== null && (
+          <button
+            type="button"
+            onClick={() => onPick(null)}
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {t("useDefault")}
+          </button>
+        )}
+      </div>
+      <p className="hint mb-3">{t("checkpointsHint")}</p>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {sorted.map((c) => {
+          const isBest = c.epoch === bestEpoch;
+          const isLatest = c.epoch === latestEpoch;
+          const isActive = c.epoch === activeEpoch;
+          return (
+            <li key={c.epoch}>
+              <button
+                type="button"
+                onClick={() => onPick(c.epoch)}
+                aria-pressed={isActive}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 rounded-lg border bg-background/60 p-3 text-start transition-colors",
+                  isActive
+                    ? "border-primary ring-2 ring-primary/30"
+                    : "hover:border-foreground/20 hover:bg-secondary/30"
+                )}
+              >
+                <span className="font-mono text-sm font-medium">
+                  {t("epochN", { epoch: c.epoch })}
+                </span>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {isBest && <Badge tone="green">{t("badgeBest")}</Badge>}
+                  {isLatest && <Badge tone="blue">{t("badgeLatest")}</Badge>}
+                  {isActive && (
+                    <Badge tone="primary">{t("badgeActive")}</Badge>
+                  )}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function Badge({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone: "green" | "blue" | "primary";
+}) {
+  const cls = {
+    green:
+      "bg-green-500/15 text-green-700 dark:text-green-400 ring-green-500/20",
+    blue: "bg-blue-500/15 text-blue-700 dark:text-blue-400 ring-blue-500/20",
+    primary: "bg-primary text-primary-foreground ring-primary",
+  }[tone];
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ring-1 ring-inset",
+        cls
+      )}
+    >
+      {children}
+    </span>
   );
 }
 

@@ -24,6 +24,10 @@ model Model {
   indexFile    String?
   bestEpoch    Int?
   checkpoints  String?  // JSON-encoded [{epoch, path}]
+  // User's chosen active checkpoint. Falls back to bestEpoch when null.
+  // Forwarded as `epoch` to the worker on every new cover unless the cover
+  // form explicitly overrides per-job.
+  defaultEpoch Int?
 
   createdAt    DateTime @default(now())
   startedAt    DateTime?
