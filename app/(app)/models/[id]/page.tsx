@@ -54,6 +54,22 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
     }
   }
 
+  const [retrying, setRetrying] = useState(false);
+  async function retry() {
+    setRetrying(true);
+    try {
+      const res = await fetch(`/api/models/${id}/retry`, { method: "POST" });
+      if (res.ok) {
+        toast.success("Retrying");
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? "Retry failed");
+      }
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   if (!model) return <p className="text-muted-foreground">Loading…</p>;
 
   const checkpoints = model.checkpoints
@@ -100,7 +116,20 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
 
       {model.status === "failed" && (
         <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm">
-          <strong>Failed:</strong> {model.error ?? "unknown error"}
+          <div className="mb-3">
+            <strong>Failed:</strong> {model.error ?? "unknown error"}
+          </div>
+          <button
+            onClick={retry}
+            disabled={retrying}
+            className="rounded-md border border-foreground/20 bg-background px-3 py-1.5 text-sm hover:bg-foreground/5 disabled:opacity-50"
+          >
+            {retrying ? "Retrying…" : "Retry"}
+          </button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Reuses songs already downloaded on the worker; only re-runs
+            isolation onward.
+          </p>
         </div>
       )}
 

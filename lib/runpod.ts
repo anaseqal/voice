@@ -47,6 +47,7 @@ export const worker = {
     callback_url: string;
     callback_token: string;
     settings?: Record<string, unknown>;
+    reuse_existing?: boolean;
   }) =>
     call<{ job_id: string; status: string }>("/train", {
       method: "POST",

@@ -33,6 +33,10 @@ UVR_MODEL = _env("UVR_MODEL", "UVR-MDX-NET-Inst_HQ_4.onnx")
 # Set TWO_PASS_ISOLATION=0 to disable.
 UVR_CLEANUP_MODEL = _env("UVR_CLEANUP_MODEL", "5_HP-Karaoke-UVR.pth")
 TWO_PASS_ISOLATION = _env("TWO_PASS_ISOLATION", "1") not in ("0", "false", "no", "")
+# Cache loaded Separator instances across songs/passes. Faster, but suspected
+# of corrupting state in some audio-separator versions when output_dir or
+# output_single_stem is mutated post-construction. Default off until proven.
+SEPARATOR_CACHE = _env("SEPARATOR_CACHE", "0") not in ("0", "false", "no", "")
 
 # --- Production training defaults (locked) ---
 TRAIN_SAMPLE_RATE = int(_env("TRAIN_SAMPLE_RATE", "48000"))

@@ -52,6 +52,10 @@ class TrainRequest(BaseModel):
     callback_url: str | None = None
     callback_token: str | None = None
     settings: TrainSettings = Field(default_factory=TrainSettings)
+    # If true, keep any existing files under dataset/<slug>/ and skip
+    # re-downloading songs that are already on disk. Used by the web app's
+    # retry flow so a failed run doesn't pay the download cost twice.
+    reuse_existing: bool = False
 
 
 class CoverSettings(BaseModel):
@@ -110,6 +114,7 @@ async def start_training(req: TrainRequest) -> dict:
             "slug": req.slug,
             "song_urls": req.song_urls,
             "settings": req.settings.model_dump(exclude_none=True),
+            "reuse_existing": req.reuse_existing,
         },
         callback_url=req.callback_url,
         callback_token=req.callback_token,

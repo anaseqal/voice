@@ -131,21 +131,40 @@ def _attach_log_handler() -> None:
     _log_handler_attached = True
 
 
-async def _get_separator(model_filename: str):  # type: ignore[no-untyped-def]
-    """Lock-protected lazy init. Caller must already hold _separator_lock."""
-    if model_filename in _separator_cache:
-        return _separator_cache[model_filename]
-    from audio_separator.separator import Separator  # heavy import
+async def _get_separator(
+    model_filename: str,
+    output_dir: Path,
+    output_single_stem: str | None,
+):  # type: ignore[no-untyped-def]
+    """Lock-protected init. Caller must already hold _separator_lock.
 
+    With SEPARATOR_CACHE=1 we reuse a single instance per model across calls
+    (fast, but bitten us before — see config.SEPARATOR_CACHE). With cache off
+    we construct a fresh Separator each call and let load_model run, paying
+    ~5-30s per call but guaranteeing clean state."""
+    from audio_separator.separator import Separator  # heavy import
     _attach_log_handler()
+
+    if config.SEPARATOR_CACHE and model_filename in _separator_cache:
+        sep = _separator_cache[model_filename]
+        sep.output_dir = str(output_dir)
+        sep.output_single_stem = output_single_stem
+        return sep
+
     sep = Separator(
         log_level=logging.INFO,
         model_file_dir="/tmp/audio-separator-models/",
         output_format="WAV",
+        output_dir=str(output_dir),
+        output_single_stem=output_single_stem,
     )
-    log.info("loading separator model %s (first use)", model_filename)
+    log.info(
+        "constructing Separator for %s (cache=%s, out=%s, single=%s)",
+        model_filename, config.SEPARATOR_CACHE, output_dir, output_single_stem,
+    )
     await asyncio.to_thread(sep.load_model, model_filename=model_filename)
-    _separator_cache[model_filename] = sep
+    if config.SEPARATOR_CACHE:
+        _separator_cache[model_filename] = sep
     return sep
 
 
@@ -237,9 +256,11 @@ async def _separate_once(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     async with _separator_lock:
-        sep = await _get_separator(model_filename)
-        sep.output_dir = str(output_dir)
-        sep.output_single_stem = None if both_stems else "Vocals"
+        sep = await _get_separator(
+            model_filename,
+            output_dir,
+            None if both_stems else "Vocals",
+        )
         returned = await asyncio.to_thread(sep.separate, str(input_path))
 
     log.info("separator returned for %s: %s", input_path.name, returned)
@@ -484,21 +505,43 @@ async def run_training(job: Job) -> None:
     dataset_dir = config.DATASET_ROOT / slug
     raw_dir = dataset_dir / "raw"
     vocals_dir = dataset_dir / "vocals"
+    reuse = bool(job.payload.get("reuse_existing"))
 
-    # Wipe any prior partial dataset for this slug
-    if dataset_dir.exists():
+    # Wipe prior dataset unless we're explicitly reusing files (retry flow).
+    if dataset_dir.exists() and not reuse:
         shutil.rmtree(dataset_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
     vocals_dir.mkdir(parents=True, exist_ok=True)
+    # On retry, wipe stale isolation output so we re-isolate from raw/.
+    if reuse:
+        for child in vocals_dir.iterdir():
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
 
     try:
-        # 1. Download
+        # 1. Download (skip if file already exists when reuse_existing is set)
         await _set(job, stage="downloading", progress=0,
                    message=f"downloading 0/{len(song_urls)}")
         downloaded: list[Path] = []
         for i, url in enumerate(song_urls, 1):
+            basename = f"song_{i:02d}"
+            if reuse:
+                cached = next(
+                    (p for p in raw_dir.glob(f"{basename}.*")
+                     if p.suffix.lower() in DIRECT_AUDIO_EXTS),
+                    None,
+                )
+                if cached is not None:
+                    log.info("reuse: %s already on disk, skipping download", cached.name)
+                    downloaded.append(cached)
+                    pct = int(15 * i / len(song_urls))
+                    await _set(job, progress=pct,
+                               message=f"reused {i}/{len(song_urls)}")
+                    continue
             try:
-                path = await download_audio(url, raw_dir, f"song_{i:02d}")
+                path = await download_audio(url, raw_dir, basename)
                 downloaded.append(path)
                 pct = int(15 * i / len(song_urls))
                 await _set(job, progress=pct,
