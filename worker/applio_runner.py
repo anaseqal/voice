@@ -35,6 +35,11 @@ async def _run(cmd: list[str], cwd: Path | None = None) -> str:
         cwd=str(cwd) if cwd else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
+        # See pipeline._run_cmd — bump the StreamReader buffer so tqdm's
+        # carriage-return-overwritten progress lines don't trigger
+        # LimitOverrunError ("Separator is not found, and chunk exceed the
+        # limit"). 'Separator' there is the *line* separator, not audio.
+        limit=10 * 1024 * 1024,
     )
     chunks: list[str] = []
     assert proc.stdout is not None

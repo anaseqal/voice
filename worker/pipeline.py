@@ -68,7 +68,14 @@ async def _callback(job: Job, *, terminal: bool = False) -> None:
 async def _run_cmd(cmd: list[str]) -> None:
     job = current_job.get()
     proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        # Default StreamReader buffer is 64KB — tqdm uses '\r' to overwrite the
+        # progress line in place, so asyncio's readline() never sees a '\n' and
+        # buffers the entire growing line until it OverrunErrors. Bump to 10MB
+        # which is plenty for any sane progress output.
+        limit=10 * 1024 * 1024,
     )
     assert proc.stdout is not None
     async for raw in proc.stdout:
