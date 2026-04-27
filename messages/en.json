@@ -103,7 +103,13 @@
     "settingsUsed": "Trained with",
     "settingsAuto": "Auto",
     "settingsOn": "On",
-    "settingsOff": "Off"
+    "settingsOff": "Off",
+    "stop": "Pause training",
+    "stopping": "Pausing…",
+    "stopConfirm": "Pause training? Saved checkpoints (every 25 epochs) are preserved — clicking Retry resumes from the last save.",
+    "stopped": "Training paused. Click Retry to resume.",
+    "stopFailed": "Couldn't pause training",
+    "resumeHint": "Resume picks up from the last saved checkpoint."
   },
   "train": {
     "title": "Train a new model",

@@ -49,6 +49,11 @@ class Job:
     task: asyncio.Task | None = None  # type: ignore[type-arg]
     log_tail: deque[str] = field(default_factory=lambda: deque(maxlen=LOG_TAIL_LINES))
     log_seq: int = 0  # bumped on every log_tail append
+    # The currently-running subprocess for this job (set by applio_runner._run
+    # while a stage is executing, cleared on completion). Lets /jobs/{id}/cancel
+    # SIGTERM the process to stop training cleanly — saved checkpoints survive.
+    current_proc: Any = None  # asyncio.subprocess.Process
+    cancel_requested: bool = False
 
     def append_log(self, line: str) -> None:
         self.log_tail.append(line)

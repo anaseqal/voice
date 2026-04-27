@@ -88,6 +88,12 @@ export const worker = {
 
   getJob: (jobId: string) => call<WorkerJob>(`/jobs/${jobId}`),
 
+  cancelJob: (jobId: string) =>
+    call<{ job_id: string; status: string; cancelled: boolean }>(
+      `/jobs/${jobId}/cancel`,
+      { method: "POST" }
+    ),
+
   listModels: () =>
     call<{ models: Array<{ slug: string; best_epoch: number }> }>("/models"),
 

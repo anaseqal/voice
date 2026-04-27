@@ -41,17 +41,25 @@ async def _run(cmd: list[str], cwd: Path | None = None) -> str:
         # limit"). 'Separator' there is the *line* separator, not audio.
         limit=10 * 1024 * 1024,
     )
+    if job is not None:
+        job.current_proc = proc
     chunks: list[str] = []
     assert proc.stdout is not None
-    async for line in proc.stdout:
-        text = line.decode("utf-8", errors="replace").rstrip()
-        chunks.append(text)
-        log.info("[applio] %s", text)
-        if job is not None:
-            job.append_log(text)
-    rc = await proc.wait()
+    try:
+        async for line in proc.stdout:
+            text = line.decode("utf-8", errors="replace").rstrip()
+            chunks.append(text)
+            log.info("[applio] %s", text)
+            if job is not None:
+                job.append_log(text)
+        rc = await proc.wait()
+    finally:
+        if job is not None and job.current_proc is proc:
+            job.current_proc = None
     output = "\n".join(chunks)
     if rc != 0:
+        if job is not None and job.cancel_requested:
+            raise ApplioError(f"cancelled by user (exit {rc})")
         raise ApplioError(f"command failed (exit {rc}): {' '.join(cmd)}\n{output[-2000:]}")
     return output
 

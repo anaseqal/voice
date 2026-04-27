@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, Square, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
 import { Avatar } from "@/components/avatar";
@@ -53,6 +53,7 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
   const tModels = useTranslations("models");
   const [model, setModel] = useState<Model | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [stopping, setStopping] = useState(false);
 
   useEffect(() => {
     function load() {
@@ -88,6 +89,21 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
       }
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function stop() {
+    if (!confirm(t("stopConfirm"))) return;
+    setStopping(true);
+    try {
+      const res = await fetch(`/api/models/${id}/stop`, { method: "POST" });
+      if (res.ok) toast.success(t("stopped"));
+      else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.detail ?? body.error ?? t("stopFailed"));
+      }
+    } finally {
+      setStopping(false);
     }
   }
 
@@ -162,6 +178,26 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
             failureKeys={["failed"]}
             successKeys={["ready"]}
           />
+          {/* Pause is only useful while actually training; covers/preprocess/
+              extract have no checkpoint to resume from, so killing them
+              wastes work. */}
+          {model.stage === "training" && (
+            <div className="flex items-center gap-2 border-t pt-3">
+              <button
+                onClick={stop}
+                disabled={stopping}
+                className="btn btn-outline border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+              >
+                {stopping ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Square className="h-4 w-4 fill-current" />
+                )}
+                {stopping ? t("stopping") : t("stop")}
+              </button>
+              <p className="text-xs text-muted-foreground">{t("resumeHint")}</p>
+            </div>
+          )}
           <LogTail text={model.logTail} title={t("workerOutput")} />
         </div>
       )}

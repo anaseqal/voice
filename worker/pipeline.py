@@ -77,14 +77,22 @@ async def _run_cmd(cmd: list[str]) -> None:
         # which is plenty for any sane progress output.
         limit=10 * 1024 * 1024,
     )
+    if job is not None:
+        job.current_proc = proc
     assert proc.stdout is not None
-    async for raw in proc.stdout:
-        text = raw.decode("utf-8", errors="replace").rstrip()
-        log.info("[cmd] %s", text)
-        if job is not None:
-            job.append_log(text)
-    rc = await proc.wait()
+    try:
+        async for raw in proc.stdout:
+            text = raw.decode("utf-8", errors="replace").rstrip()
+            log.info("[cmd] %s", text)
+            if job is not None:
+                job.append_log(text)
+        rc = await proc.wait()
+    finally:
+        if job is not None and job.current_proc is proc:
+            job.current_proc = None
     if rc != 0:
+        if job is not None and job.cancel_requested:
+            raise RuntimeError(f"cancelled by user (rc={rc})")
         raise RuntimeError(f"command failed (rc={rc}): {' '.join(cmd)}")
 
 
