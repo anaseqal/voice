@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Download } from "lucide-react";
+import { toast } from "sonner";
+import { AlertCircle, Download, Loader2, RefreshCw } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { ProgressBar } from "@/components/progress-bar";
 import { Avatar } from "@/components/avatar";
@@ -42,7 +43,9 @@ export default function CoverDetail({ params }: { params: { id: string } }) {
   const t = useTranslations("covers");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
+  const tModel = useTranslations("model");
   const [cover, setCover] = useState<Cover | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     function load() {
@@ -54,6 +57,20 @@ export default function CoverDetail({ params }: { params: { id: string } }) {
     const handle = setInterval(load, 2000);
     return () => clearInterval(handle);
   }, [id]);
+
+  async function retry() {
+    setRetrying(true);
+    try {
+      const res = await fetch(`/api/covers/${id}/retry`, { method: "POST" });
+      if (res.ok) toast.success(tModel("retried"));
+      else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? tModel("retryFailed"));
+      }
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   if (!cover) return <p className="text-muted-foreground">{tCommon("loading")}</p>;
   const outputUrl =
@@ -132,6 +149,20 @@ export default function CoverDetail({ params }: { params: { id: string } }) {
             failureKeys={["failed"]}
             successKeys={["done"]}
           />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+              onClick={retry}
+              disabled={retrying}
+              className="btn btn-primary"
+            >
+              {retrying ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {retrying ? tCommon("retrying") : tCommon("retry")}
+            </button>
+          </div>
           <LogTail text={cover.logTail} title={t("workerOutput")} />
         </div>
       )}
