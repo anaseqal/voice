@@ -310,6 +310,58 @@ async def isolate(input_path: Path, output_dir: Path, both_stems: bool = False) 
     return final
 
 
+async def _trim_silence(path: Path) -> None:
+    """In-place: rewrite a vocal WAV with long silent gaps removed.
+
+    Used on training data only — we want to feed the model singing, not
+    instrumental gaps and outros (which waste pitch/embed/train cycles
+    and slightly poison the model with thousands of 'silence' samples).
+
+    Cover paths skip this — there we need to keep the vocal in sync with
+    the original instrumental for the final mix.
+
+    Falls back to the original file if the filter strips too much (e.g.
+    threshold mismatched to a quiet track), so the pipeline never ends
+    up with an empty vocal."""
+    if not config.TRAIN_TRIM_SILENCE:
+        return
+    tmp = path.with_suffix(".trimmed.wav")
+    db = config.TRAIN_SILENCE_THRESHOLD_DB
+    dur = config.TRAIN_SILENCE_MIN_DUR
+    silenceremove = (
+        f"silenceremove="
+        f"start_periods=1:start_duration=0:start_threshold={db}dB:"
+        f"stop_periods=-1:stop_duration={dur}:stop_threshold={db}dB:"
+        f"stop_silence=0.1"
+    )
+    cmd = [
+        "ffmpeg", "-y", "-i", str(path),
+        "-af", silenceremove,
+        "-ar", "44100",
+        "-c:a", "pcm_s16le",
+        str(tmp),
+    ]
+    try:
+        await _run_cmd(cmd)
+    except RuntimeError as exc:
+        log.warning("silence trim failed for %s: %s; keeping original", path.name, exc)
+        if tmp.exists():
+            tmp.unlink()
+        return
+
+    orig_dur = _audio_duration(path)
+    new_dur = _audio_duration(tmp)
+    if new_dur < 5.0 or (orig_dur > 0 and new_dur < orig_dur * 0.2):
+        log.warning(
+            "silence trim too aggressive on %s (%.1fs → %.1fs); keeping original",
+            path.name, orig_dur, new_dur,
+        )
+        tmp.unlink()
+        return
+    tmp.replace(path)
+    log.info("silence trim: %s %.1fs → %.1fs", path.name, orig_dur, new_dur)
+
+
 async def mix(vocal_path: Path, instrumental_path: Path, output_path: Path) -> None:
     """Mix converted vocal with original instrumental."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -379,11 +431,13 @@ async def run_training(job: Job) -> None:
         if not downloaded:
             raise RuntimeError("no songs were downloaded successfully")
 
-        # 2. Isolate vocals
+        # 2. Isolate vocals (then trim silence so we don't train on outros/gaps)
         await _set(job, stage="isolating", progress=15,
                    message=f"isolating 0/{len(downloaded)}")
         for i, song in enumerate(downloaded, 1):
-            await isolate(song, vocals_dir, both_stems=False)
+            stems = await isolate(song, vocals_dir, both_stems=False)
+            if "vocals" in stems:
+                await _trim_silence(stems["vocals"])
             pct = 15 + int(20 * i / len(downloaded))
             await _set(job, progress=pct,
                        message=f"isolated {i}/{len(downloaded)}")
