@@ -47,6 +47,12 @@ export async function POST(
     if (typeof result.index_file === "string") data.indexFile = result.index_file;
     if (Array.isArray(result.checkpoints)) {
       data.checkpoints = JSON.stringify(result.checkpoints);
+    }
+    // Prefer the worker's lowest-loss epoch over plain max(epochs); fall back
+    // to max(epochs) for older worker versions that don't send best_epoch.
+    if (typeof result.best_epoch === "number" && result.best_epoch > 0) {
+      data.bestEpoch = result.best_epoch;
+    } else if (Array.isArray(result.checkpoints)) {
       const epochs = result.checkpoints
         .map((c) => (typeof (c as { epoch?: number }).epoch === "number" ? (c as { epoch: number }).epoch : 0))
         .filter((e) => e > 0);

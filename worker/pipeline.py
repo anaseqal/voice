@@ -503,9 +503,19 @@ async def run_training(job: Job) -> None:
 
         # 7. Done
         pth, idx = applio_runner.find_best_checkpoint(slug)
+        best_info = applio_runner.read_best_epoch(slug)
+        # The .pth filename is <slug>_<epoch>e_<step>s.pth — pull the actual
+        # epoch we chose so the web app records the right one.
+        chosen_epoch: int | None = None
+        try:
+            chosen_epoch = int(pth.stem.split("_")[1].rstrip("e"))
+        except (ValueError, IndexError):
+            pass
         job.result = {
             "model_pth": str(pth),
             "index_file": str(idx),
+            "best_epoch": chosen_epoch,
+            "best_loss": best_info.get("loss") if best_info else None,
             "checkpoints": [
                 {"epoch": e, "path": str(p)}
                 for e, p in applio_runner.list_checkpoints(slug)
