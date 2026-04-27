@@ -48,6 +48,12 @@ async def _run(cmd: list[str], cwd: Path | None = None) -> str:
     try:
         async for line in proc.stdout:
             text = line.decode("utf-8", errors="replace").rstrip()
+            # tqdm uses '\r' to overwrite a single line in-place as it ticks
+            # 0% → 100%. Browsers don't render '\r' as a line break in <pre>,
+            # so all states stack into one giant line and the user sees only
+            # the leftmost "0%|". Keep just the final state for clean output.
+            if "\r" in text:
+                text = text.rsplit("\r", 1)[-1].lstrip()
             chunks.append(text)
             log.info("[applio] %s", text)
             if job is not None:

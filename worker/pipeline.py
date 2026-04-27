@@ -83,6 +83,11 @@ async def _run_cmd(cmd: list[str]) -> None:
     try:
         async for raw in proc.stdout:
             text = raw.decode("utf-8", errors="replace").rstrip()
+            # tqdm uses '\r' to overwrite the same line; collapse to the final
+            # state so the UI shows clean output instead of a horizontal-scroll
+            # of 0%|... 3%|... 6%|... etc.
+            if "\r" in text:
+                text = text.rsplit("\r", 1)[-1].lstrip()
             log.info("[cmd] %s", text)
             if job is not None:
                 job.append_log(text)
