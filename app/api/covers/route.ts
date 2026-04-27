@@ -108,9 +108,11 @@ export async function POST(req: NextRequest) {
       callback_token: env.CALLBACK_BEARER_TOKEN,
       settings: parseCoverSettings(form, pitch, epoch),
     });
+    // Stay queued until the worker dispatcher pulls this job; the running
+    // callback will flip status to running.
     await db.cover.update({
       where: { id: cover.id },
-      data: { workerJobId: res.job_id, status: "running", stage: "queued" },
+      data: { workerJobId: res.job_id, status: "queued", stage: "queued" },
     });
   } catch (err) {
     await db.cover.update({

@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from . import applio_runner, config, pipeline
 from .auth import require_token
-from .jobs import JobStatus, JobType, registry
+from .jobs import JobStatus, JobType, queue, registry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,6 +34,11 @@ log = logging.getLogger("worker")
 config.ensure_dirs()
 
 app = FastAPI(title="voice-worker", version="0.1.0")
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    queue.start()
 
 
 # --- Schemas --------------------------------------------------------------
@@ -114,6 +119,7 @@ async def health() -> dict:
             1 for j in registry.list()
             if j.status in (JobStatus.QUEUED, JobStatus.RUNNING)
         ),
+        "queue": queue.status(),
     }
 
 
@@ -130,9 +136,10 @@ async def start_training(req: TrainRequest) -> dict:
         callback_url=req.callback_url,
         callback_token=req.callback_token,
     )
-    job.task = asyncio.create_task(pipeline.run_training(job))
-    log.info("train job %s queued for slug=%s songs=%d", job.id, req.slug, len(req.song_urls))
-    return {"job_id": job.id, "status": job.status.value}
+    position = queue.submit(job, pipeline.run_training)
+    log.info("train job %s queued for slug=%s songs=%d (position=%d)",
+             job.id, req.slug, len(req.song_urls), position)
+    return {"job_id": job.id, "status": job.status.value, "queue_position": position}
 
 
 @app.post("/cover", dependencies=[Depends(require_token)])
@@ -152,9 +159,10 @@ async def start_cover(req: CoverRequest) -> dict:
         callback_url=req.callback_url,
         callback_token=req.callback_token,
     )
-    job.task = asyncio.create_task(pipeline.run_cover(job))
-    log.info("cover job %s queued for model=%s", job.id, req.model_slug)
-    return {"job_id": job.id, "status": job.status.value}
+    position = queue.submit(job, pipeline.run_cover)
+    log.info("cover job %s queued for model=%s (position=%d)",
+             job.id, req.model_slug, position)
+    return {"job_id": job.id, "status": job.status.value, "queue_position": position}
 
 
 @app.get("/jobs/{job_id}", dependencies=[Depends(require_token)])

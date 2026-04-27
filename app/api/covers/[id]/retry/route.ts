@@ -85,7 +85,7 @@ export async function POST(
     });
     await db.cover.update({
       where: { id },
-      data: { workerJobId: res.job_id, status: "running" },
+      data: { workerJobId: res.job_id, status: "queued" },
     });
   } catch (err) {
     await db.cover.update({

@@ -108,9 +108,13 @@ export async function POST(req: NextRequest) {
       callback_token: env.CALLBACK_BEARER_TOKEN,
       settings: parseTrainSettings(form),
     });
+    // Leave status as "queued" until the worker actually picks the job off
+    // its serial dispatcher and fires a "running" callback. With the queue,
+    // multiple submissions sit at status=queued and flip to training one at
+    // a time as the dispatcher pulls them.
     await db.model.update({
       where: { id: model.id },
-      data: { workerJobId: res.job_id, status: "training", stage: "queued" },
+      data: { workerJobId: res.job_id, stage: "queued" },
     });
   } catch (err) {
     await db.model.update({

@@ -56,7 +56,7 @@ export async function POST(
     });
     await db.model.update({
       where: { id },
-      data: { workerJobId: res.job_id, status: "training" },
+      data: { workerJobId: res.job_id, status: "queued" },
     });
   } catch (err) {
     await db.model.update({

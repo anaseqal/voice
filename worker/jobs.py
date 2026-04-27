@@ -1,17 +1,20 @@
-"""In-memory job registry. v1 keeps state in RAM; if pod restarts, in-flight jobs are lost.
-That's acceptable for the single-user MVP — the web app can re-submit on failure."""
+"""In-memory job registry + dispatcher. v1 keeps state in RAM; if pod restarts,
+in-flight and queued jobs are lost. Acceptable for the single-user MVP — the
+web app can re-submit on failure."""
 from __future__ import annotations
 
 import asyncio
 import contextvars
+import logging
 import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 LOG_TAIL_LINES = 30
+log = logging.getLogger(__name__)
 
 
 class JobType(str, Enum):
@@ -106,3 +109,62 @@ class JobRegistry:
 
 
 registry = JobRegistry()
+
+
+class JobQueue:
+    """Serial FIFO dispatcher.
+
+    Jobs are submitted with their pipeline coroutine; a single background task
+    pulls and runs them one at a time. Prevents GPU OOM / contention from
+    parallel pipelines and lets the user queue multiple trainings overnight."""
+
+    def __init__(self) -> None:
+        self._queue: asyncio.Queue[tuple[Job, Callable[[Job], Awaitable[None]]]] = (
+            asyncio.Queue()
+        )
+        self._task: asyncio.Task | None = None  # type: ignore[type-arg]
+        self._current: Job | None = None
+
+    def start(self) -> None:
+        if self._task is None:
+            self._task = asyncio.create_task(self._run())
+            log.info("job queue dispatcher started")
+
+    async def _run(self) -> None:
+        while True:
+            job, runner = await self._queue.get()
+            self._current = job
+            try:
+                log.info(
+                    "dispatching job %s (type=%s) — queue depth now %d",
+                    job.id, job.type.value, self._queue.qsize(),
+                )
+                await runner(job)
+            except Exception:
+                log.exception("job %s crashed in dispatcher", job.id)
+            finally:
+                self._current = None
+                self._queue.task_done()
+
+    def submit(
+        self,
+        job: Job,
+        runner: Callable[[Job], Awaitable[None]],
+    ) -> int:
+        """Enqueue a job. Returns 0-based queue position behind currently running job."""
+        position = self._queue.qsize() + (1 if self._current else 0)
+        self._queue.put_nowait((job, runner))
+        log.info(
+            "queued job %s (type=%s) at position %d",
+            job.id, job.type.value, position,
+        )
+        return position
+
+    def status(self) -> dict[str, Any]:
+        return {
+            "running": self._current.id if self._current else None,
+            "depth": self._queue.qsize(),
+        }
+
+
+queue = JobQueue()
