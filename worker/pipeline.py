@@ -255,15 +255,55 @@ async def _separate_once(
     We move files into output_dir if needed."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Validate the input *before* we hand it to audio-separator. The separator
+    # logs "Failed to process file <path>: " (empty error) when the input
+    # isn't decodable, which is impossible to debug from the worker output.
+    # Most common cause: HTML error pages saved with an audio extension, or
+    # truncated/empty downloads. Fail with actionable diagnostics instead.
+    if not input_path.exists():
+        raise RuntimeError(f"audio file missing: {input_path}")
+    size_kb = input_path.stat().st_size / 1024
+    if size_kb < 4:
+        raise RuntimeError(
+            f"audio file too small to be real audio: {input_path.name} "
+            f"({size_kb:.1f} KB) — download likely failed or returned an error page"
+        )
+    duration = _audio_duration(input_path)
+    if duration < 1.0:
+        raise RuntimeError(
+            f"audio file has no decodable duration: {input_path.name} "
+            f"({duration:.2f}s, {size_kb:.0f} KB) — file may be corrupt or "
+            f"the wrong format (e.g. HTML saved as .mp3)"
+        )
+
+    log.info(
+        "separating %s (%.0f KB, %.1fs) with %s",
+        input_path.name, size_kb, duration, model_filename,
+    )
+
     async with _separator_lock:
         sep = await _get_separator(
             model_filename,
             output_dir,
             None if both_stems else "Vocals",
         )
-        returned = await asyncio.to_thread(sep.separate, str(input_path))
+        try:
+            returned = await asyncio.to_thread(sep.separate, str(input_path))
+        except Exception as exc:
+            # audio-separator sometimes raises with empty repr; include input
+            # context so the failure message is at least diagnosable.
+            raise RuntimeError(
+                f"separator raised on {input_path.name} ({duration:.1f}s, "
+                f"{size_kb:.0f} KB, model={model_filename}): {exc!r}"
+            ) from exc
 
     log.info("separator returned for %s: %s", input_path.name, returned)
+    if not returned:
+        raise RuntimeError(
+            f"separator returned no files for {input_path.name} — "
+            f"input may not be decodable as audio (model={model_filename}, "
+            f"{duration:.1f}s, {size_kb:.0f} KB)"
+        )
 
     # Resolve each returned filename to an existing file. If the separator
     # wrote it somewhere other than output_dir (because of the mutation issue
