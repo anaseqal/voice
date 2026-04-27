@@ -217,23 +217,23 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
           {t("trainingSongs")} ({model.songs.length})
         </h2>
         <ul className="space-y-2 text-sm">
-          {model.songs.map((s) => (
-            <li
-              key={s.id}
-              className="flex items-center gap-3 overflow-hidden rounded-md border bg-background/60 px-3 py-2"
-            >
-              <SongStatusDot status={s.status} />
-              <span className="hidden w-20 shrink-0 text-xs text-muted-foreground sm:inline">
-                {tryStatus(tStatus, s.status)}
-              </span>
-              <span
-                dir="ltr"
-                className="flex-1 truncate font-mono text-xs text-muted-foreground"
+          {model.songs.map((s) => {
+            const effective = effectiveSongStatus(model.status, s.status);
+            return (
+              <li
+                key={s.id}
+                className="flex items-center gap-3 overflow-hidden rounded-md border bg-background/60 px-3 py-2"
               >
-                {s.url}
-              </span>
-            </li>
-          ))}
+                <SongStatusDot status={effective} />
+                <span
+                  dir="ltr"
+                  className="flex-1 truncate font-mono text-xs text-muted-foreground"
+                >
+                  {s.url}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </div>
 
@@ -248,24 +248,28 @@ export default function ModelDetail({ params }: { params: { id: string } }) {
   );
 }
 
-function tryStatus(t: ReturnType<typeof useTranslations>, key: string) {
-  try {
-    return t(key as never);
-  } catch {
-    return key;
-  }
+/**
+ * Until the worker plumbs per-song status updates back to the DB, every
+ * TrainingSong row stays at the default "pending" forever. Derive a sensible
+ * effective state from the overall model status so the UI doesn't lie:
+ *  - ready  → every song was used to produce that model
+ *  - failed → we don't actually know which songs survived isolation; keep
+ *             the DB value (typically "pending")
+ *  - else   → in-flight; trust whatever the DB says
+ */
+function effectiveSongStatus(modelStatus: string, songStatus: string): string {
+  if (modelStatus === "ready") return "done";
+  return songStatus;
 }
 
 function SongStatusDot({ status }: { status: string }) {
   const cls =
-    status === "isolated" || status === "downloaded"
+    status === "isolated" || status === "downloaded" || status === "done"
       ? "bg-green-500"
       : status === "failed"
         ? "bg-red-500"
         : "bg-muted-foreground/40";
-  return (
-    <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} />
-  );
+  return <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} />;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
