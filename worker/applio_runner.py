@@ -144,6 +144,7 @@ async def infer(
     output_path: Path,
     pitch: int = 0,
 ) -> None:
+    # Note: --hop_length was removed from Applio's infer CLI. Don't pass it.
     cmd = [
         str(config.APPLIO_PYTHON),
         "core.py",
@@ -156,7 +157,6 @@ async def infer(
         "--index_rate", str(config.INFER_INDEX_RATE),
         "--volume_envelope", str(config.INFER_VOLUME_ENVELOPE),
         "--protect", str(config.INFER_PROTECT),
-        "--hop_length", str(config.INFER_HOP_LENGTH),
         "--f0_method", config.INFER_F0_METHOD,
         "--embedder_model", config.TRAIN_EMBEDDER,
         "--export_format", "WAV",
