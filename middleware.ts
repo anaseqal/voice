@@ -11,6 +11,10 @@ const PUBLIC = new Set<string>([
 const PUBLIC_PREFIXES = [
   "/api/callbacks/",
   "/api/files/",
+  // Public-facing alias for /api/files/. Middleware runs before rewrites,
+  // so without this the worker (and any external fetcher) gets redirected
+  // to /login when downloading uploads/outputs/avatars.
+  "/files/",
   "/_next/",
 ];
 
