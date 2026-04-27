@@ -460,22 +460,40 @@ async def run_training(job: Job) -> None:
         if not downloaded:
             raise RuntimeError("no songs were downloaded successfully")
 
-        total_epoch = _resolve_total_epoch(settings, len(downloaded))
-        log.info(
-            "training plan: %d songs → %d epochs (override=%s)",
-            len(downloaded), total_epoch, settings.get("total_epoch"),
-        )
-
         # 2. Isolate vocals (then trim silence so we don't train on outros/gaps)
         await _set(job, stage="isolating", progress=15,
                    message=f"isolating 0/{len(downloaded)}")
+        isolated: list[Path] = []
+        skipped: list[tuple[Path, str]] = []
         for i, song in enumerate(downloaded, 1):
-            stems = await isolate(song, vocals_dir, both_stems=False)
-            if "vocals" in stems:
+            try:
+                stems = await isolate(song, vocals_dir, both_stems=False)
+                if "vocals" not in stems:
+                    raise RuntimeError("separator returned no vocals stem")
                 await _trim_silence(stems["vocals"])
+                isolated.append(stems["vocals"])
+            except Exception as exc:
+                log.warning("isolation failed for %s: %s; skipping", song.name, exc)
+                skipped.append((song, str(exc)))
             pct = 15 + int(20 * i / len(downloaded))
-            await _set(job, progress=pct,
-                       message=f"isolated {i}/{len(downloaded)}")
+            msg = f"isolated {len(isolated)}/{len(downloaded)}"
+            if skipped:
+                msg += f" ({len(skipped)} skipped)"
+            await _set(job, progress=pct, message=msg)
+
+        if not isolated:
+            raise RuntimeError(
+                f"all {len(downloaded)} songs failed isolation; "
+                f"first error: {skipped[0][1] if skipped else 'unknown'}"
+            )
+        if skipped:
+            log.warning("%d/%d songs skipped during isolation", len(skipped), len(downloaded))
+
+        total_epoch = _resolve_total_epoch(settings, len(isolated))
+        log.info(
+            "training plan: %d songs (of %d submitted) → %d epochs (override=%s)",
+            len(isolated), len(song_urls), total_epoch, settings.get("total_epoch"),
+        )
 
         # 3. Preprocess
         await _set(job, stage="preprocessing", progress=35,
