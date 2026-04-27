@@ -15,6 +15,9 @@ const PUBLIC_PREFIXES = [
   // so without this the worker (and any external fetcher) gets redirected
   // to /login when downloading uploads/outputs/avatars.
   "/files/",
+  // Worker-only admin endpoints (auth'd via CALLBACK_BEARER_TOKEN, not
+  // session cookie).
+  "/api/admin/",
   "/_next/",
 ];
 

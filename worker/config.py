@@ -16,6 +16,11 @@ def _env(key: str, default: str | None = None, required: bool = False) -> str:
 # --- Auth ---
 WORKER_BEARER_TOKEN = _env("WORKER_BEARER_TOKEN", required=True)
 
+# Used only for the worker→web sweep call on startup. Both are optional —
+# without them the sweep is skipped (worker still works).
+WEB_BASE_URL = _env("WEB_BASE_URL", "")
+CALLBACK_BEARER_TOKEN = _env("CALLBACK_BEARER_TOKEN", "")
+
 # --- Paths ---
 APPLIO_DIR = Path(_env("APPLIO_DIR", "/workspace/Applio"))
 APPLIO_PYTHON = Path(_env("APPLIO_PYTHON", str(APPLIO_DIR / ".venv" / "bin" / "python")))

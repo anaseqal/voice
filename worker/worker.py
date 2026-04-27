@@ -21,6 +21,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+import httpx
+
 from . import applio_runner, config, pipeline
 from .auth import require_token
 from .jobs import JobStatus, JobType, queue, registry
@@ -39,6 +41,28 @@ app = FastAPI(title="voice-worker", version="0.1.0")
 @app.on_event("startup")
 async def _startup() -> None:
     queue.start()
+    # Tell the web app to sweep any in-flight DB rows whose workerJobId we
+    # don't recognize. On a fresh worker process the registry is empty, so
+    # the web flips every status=running/queued ghost to failed.
+    if config.WEB_BASE_URL and config.CALLBACK_BEARER_TOKEN:
+        url = f"{config.WEB_BASE_URL.rstrip('/')}/api/admin/sweep-stale"
+        live_ids = [j.id for j in registry.list()]
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    url,
+                    headers={"Authorization": f"Bearer {config.CALLBACK_BEARER_TOKEN}"},
+                    json={"worker_job_ids": live_ids},
+                )
+                if resp.status_code == 200:
+                    log.info("startup sweep: %s", resp.json())
+                else:
+                    log.warning("startup sweep got %s: %s",
+                                resp.status_code, resp.text[:200])
+        except Exception as exc:
+            log.warning("startup sweep failed (non-fatal): %s", exc)
+    else:
+        log.info("startup sweep skipped (WEB_BASE_URL or CALLBACK_BEARER_TOKEN unset)")
 
 
 # --- Schemas --------------------------------------------------------------
