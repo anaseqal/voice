@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { requireSessionOrJson } from "@/lib/auth";
-import { worker } from "@/lib/runpod";
+import { worker, type TrainSettings } from "@/lib/runpod";
 
 export async function POST(
   _: NextRequest,
@@ -45,6 +45,16 @@ export async function POST(
     data: { status: "pending" },
   });
 
+  // Replay the original advanced settings the user picked at submit time.
+  let settings: TrainSettings | undefined;
+  if (model.settingsJson) {
+    try {
+      settings = JSON.parse(model.settingsJson) as TrainSettings;
+    } catch {
+      settings = undefined;
+    }
+  }
+
   try {
     const callbackUrl = `${env.PUBLIC_BASE_URL}/api/callbacks/training/${id}`;
     const res = await worker.startTraining({
@@ -53,6 +63,7 @@ export async function POST(
       callback_url: callbackUrl,
       callback_token: env.CALLBACK_BEARER_TOKEN,
       reuse_existing: true,
+      ...(settings ? { settings } : {}),
     });
     await db.model.update({
       where: { id },

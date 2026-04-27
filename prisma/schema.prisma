@@ -28,6 +28,9 @@ model Model {
   // Forwarded as `epoch` to the worker on every new cover unless the cover
   // form explicitly overrides per-job.
   defaultEpoch Int?
+  // JSON snapshot of advanced TrainSettings the user submitted. Reused on
+  // retry so we don't silently revert their per-job choices.
+  settingsJson String?
 
   createdAt    DateTime @default(now())
   startedAt    DateTime?

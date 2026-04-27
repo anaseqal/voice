@@ -73,7 +73,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "slug already exists" }, { status: 409 });
   }
 
-  // Create row first, then upload avatar (we need the id)
+  const settings = parseTrainSettings(form);
+
+  // Create row first, then upload avatar (we need the id). Persist the
+  // user's advanced settings so retry can replay them.
   const model = await db.model.create({
     data: {
       slug: parsed.data.slug,
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
       status: "queued",
       stage: "queued",
       progress: 0,
+      settingsJson: Object.keys(settings).length > 0 ? JSON.stringify(settings) : null,
       songs: { create: parsed.data.songUrls.map((url) => ({ url })) },
     },
   });
@@ -106,7 +110,7 @@ export async function POST(req: NextRequest) {
       song_urls: parsed.data.songUrls,
       callback_url: callbackUrl,
       callback_token: env.CALLBACK_BEARER_TOKEN,
-      settings: parseTrainSettings(form),
+      settings,
     });
     // Leave status as "queued" until the worker actually picks the job off
     // its serial dispatcher and fires a "running" callback. With the queue,
